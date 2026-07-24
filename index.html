@@ -355,6 +355,16 @@ input[type=number]{-moz-appearance:textfield}
 .combo-pick .combo-in:hover{background:#fff; border-color:var(--accent)}
 .combo-pick .combo-arrow{right:7px; width:22px; height:22px; font-size:10px}
 .combo-empty{padding:10px 9px; font-size:12px; color:var(--muted); line-height:1.4}
+
+/* На сенсорных экранах поле только открывает список: курсор и клавиатура
+   мешали бы — клавиатура закрывает собой половину списка. Ввод имени
+   включается отдельной строкой «Ввести своё название». */
+@media (pointer: coarse){
+  .combo-in{cursor:pointer}
+  .combo-opt{padding:11px 10px; font-size:14px; min-height:44px}
+  .combo-menu{padding:6px}
+  .combo-opt.is-manual{color:var(--accent)}
+}
 .t-dash{flex:0 0 auto; color:var(--muted); font-size:12px}
 .field .t-in{text-align:left; padding:8px 10px; font-size:14px}
 .res-item .cap input{padding:4px 6px;font-size:12px;text-align:center}
@@ -957,6 +967,9 @@ const PALETTE = [
 
 const STORE_KEY = "konstruktr-raspisaniy-v2";
 
+// перерыв длиннее этого (мин) считается границей блока дня: утро / после сна
+const BLOCK_GAP = 120;
+
 /* ============================================================
    СОСТОЯНИЕ
    ============================================================ */
@@ -1257,6 +1270,21 @@ function autoBuild(){
   state.groups.forEach(g => spans[g.id] = slotSpans(g));
   const spanAt = (pi, s) => (spans[pi.groupId] || [])[s] || null;
 
+  // блоки внутри дня: большой перерыв (> 2 ч) отделяет утро от занятий после сна.
+  // Позиция считается внутри блока, иначе алгоритм принимает вечерний слот
+  // за поздний хвост и оставляет его пустым, ломая структуру детсадовского дня.
+  const blocks = {};
+  state.groups.forEach(g => {
+    const sp = spans[g.id]; const info = []; let blk = 0, pos = 0;
+    for(let s=0; s<sp.length; s++){
+      if(!sp[s]){ info.push(null); continue; }
+      if(s>0 && sp[s-1] && sp[s][0] - sp[s-1][1] >= BLOCK_GAP){ blk++; pos = 0; }
+      info.push({block: blk, pos: pos++});
+    }
+    blocks[g.id] = info;
+  });
+  const blockAt = (pi, s) => (blocks[pi.groupId] || [])[s] || null;
+
   for(let attempt=0; attempt<TRIES; attempt++){
     const rnd = mulberry32(attempt * 7919 + 13);
     // busyT/busyR: id|день -> список занятых отрезков; busyG: группа|день|слот
@@ -1305,7 +1333,8 @@ function autoBuild(){
         for(let s=0; s<S; s++){
           if(!isFree(ctx, pi, d, s)) continue;
 
-          let cost = s * 0.75;                 // тянем вверх, чтобы не было хвостов
+          const bi = blockAt(pi, s);
+          let cost = (bi ? bi.pos : s) * 0.75; // тянем вверх внутри блока, чтобы не было хвостов
           cost += gd * 0.9;                    // ровнее по дням недели
           const same = subjDay.get(pi.groupId + "|" + pi.subjectId + "|" + d) || 0;
           cost += same * 7;                    // один предмет дважды в день — плохо
@@ -1317,7 +1346,8 @@ function autoBuild(){
               return q && q.groupId === pi.groupId && p.day === d;
             }).map(p => p.slot);
             const near = slots.some(x => Math.abs(x - s) === 1);
-            if(!near) cost += 3.5;
+            // первый слот блока (после сна) не примыкает к утренним — это не окно
+            if(!near && !(bi && bi.pos === 0)) cost += 3.5;
           }
           cost += rnd() * 1.4;                 // разброс между попытками
 
@@ -1330,11 +1360,6 @@ function autoBuild(){
       mark(pi, bestCell.d, bestCell.s, null);
     }
 
-    // второй заход для тех, кому не нашлось места: подвинуть одну мешающую карточку
-    for(let k = unplaced.length - 1; k >= 0; k--){
-      if(tryEject(unplaced[k], ctx, out, mark, D, S)) unplaced.splice(k, 1);
-    }
-
     compact(out, ctx);
     swapPass(out, ctx);
 
@@ -1343,7 +1368,87 @@ function autoBuild(){
     if(!best || score > best.score) best = {placements:out, unplaced, gaps, score};
     if(unplaced.length === 0 && gaps === 0) break;
   }
+
+  // жадность оставила часть занятий за бортом — доразмещаем перестановками
+  if(best.unplaced.length){
+    const fixed = repairFill(best, D, S, spanAt);
+    if(fixed && fixed.unplaced.length < best.unplaced.length){
+      best = {placements: fixed.placements, unplaced: fixed.unplaced,
+              gaps: countGaps(fixed.placements), score: 0};
+    }
+  }
   return best;
+}
+
+/**
+ * Доразмещение методом наименьших конфликтов: занятие ставим в клетку с
+ * минимумом помех, мешающие вытесняем в очередь и размещаем заново.
+ * tabu-штраф не даёт тут же откатить только что поставленное; несколько
+ * перезапусков спасают от редких зацикливаний. Расписание остаётся без
+ * накладок — вытеснение только освобождает место, а не накладывает.
+ */
+function repairFill(best, D, S, spanAt){
+  const groupOfId = id => byId(state.groups, id);
+  let result = null;
+
+  for(let attempt=0; attempt<6 && (!result || result.unplaced.length); attempt++){
+    const rnd = mulberry32(attempt * 2657 + 101);
+    const placed = best.placements.map(p => ({key: uid(), planId: p.planId, day: p.day, slot: p.slot, locked: p.locked}));
+    const queue = best.unplaced.slice();
+    const tabu = new Map(); let tick = 0;
+
+    // мешающие занятия в клетке (d,s) для плана pi: та же клетка группы или
+    // пересечение по времени у общего педагога / кабинета
+    const collide = (pi, d, s) => {
+      const g = groupOfId(pi.groupId);
+      if(!slotAvailable(g, s)) return null;
+      if(pi.locked) return null;
+      const span = spanAt(pi, s), hits = [];
+      for(const p of placed){
+        if(p.day !== d) continue;
+        const q = planById(p.planId); if(!q) continue;
+        if(q.groupId === pi.groupId && p.slot === s){ if(p.locked) return null; hits.push(p); continue; }
+        const qs = spanAt(q, p.slot);
+        if(pi.teacherId && q.teacherId === pi.teacherId && overlap(span, qs)){ if(p.locked) return null; hits.push(p); continue; }
+        if(pi.roomId && q.roomId === pi.roomId && overlap(span, qs)){ if(p.locked) return null; hits.push(p); }
+      }
+      return hits;
+    };
+
+    for(let it=0; queue.length && it < 500; it++){
+      tick++;
+      const pi = queue.shift();
+      const g = groupOfId(pi.groupId), gLimit = (g && g.maxPerDay) || S;
+      const t = teacherOf(pi), tLimit = (t && t.maxPerDay) || S;
+      let cell = null, bestCost = Infinity, evict = null;
+
+      for(let d=0; d<D; d++){
+        const gd = placed.filter(p => { const q = planById(p.planId); return q && q.groupId === pi.groupId && p.day === d; }).length;
+        const td = pi.teacherId ? placed.filter(p => { const q = planById(p.planId); return q && q.teacherId === pi.teacherId && p.day === d; }).length : 0;
+        for(let s=0; s<S; s++){
+          const hits = collide(pi, d, s);
+          if(hits === null) continue;
+          let cost = hits.length;
+          hits.forEach(h => { if(tabu.get(h.key) > tick - 6) cost += 3; });
+          if(hits.length === 0){                       // штраф за превышение дневной нормы только на пустой клетке
+            if(gd >= gLimit) cost += 4;
+            if(pi.teacherId && td >= tLimit) cost += 4;
+          }
+          cost += rnd() * 0.6;
+          if(cost < bestCost){ bestCost = cost; cell = {d, s}; evict = hits; }
+        }
+      }
+      if(!cell) continue;
+      evict.forEach(h => { placed.splice(placed.indexOf(h), 1); queue.push(planById(h.planId)); });
+      const np = {key: uid(), planId: pi.id, day: cell.d, slot: cell.s, locked: false};
+      placed.push(np); tabu.set(np.key, tick);
+    }
+
+    const cur = {placements: placed.map(p => ({id: uid(), planId: p.planId, day: p.day, slot: p.slot, locked: p.locked})),
+                 unplaced: queue.slice()};
+    if(!result || cur.unplaced.length < result.unplaced.length) result = cur;
+  }
+  return result;
 }
 
 /* --- занятость: группа держится за слот, педагог и кабинет — за отрезок времени --- */
@@ -1388,59 +1493,6 @@ function occupy(ctx, pi, d, s, on, span){
  * и пробуем увести её в другое место. Так помещаются педагоги с плотной
  * нагрузкой, которых жадная расстановка оставляет за бортом.
  */
-function tryEject(pi, ctx, out, mark, D, S){
-  const g = byId(state.groups, pi.groupId);
-  const spanOfCard = p => {
-    const q = planById(p.planId);
-    return spanOf(p) || (q ? ctx.spanAt(q, p.slot) : null);
-  };
-
-  for(let d=0; d<D; d++){
-    for(let s=0; s<S; s++){
-      if(!slotAvailable(g, s)) continue;
-      if(ctx.busyG.has(pi.groupId + "|" + d + "|" + s)) continue;   // тут занята сама группа
-      const span = ctx.spanAt(pi, s);
-
-      const blockers = out.filter(p => {
-        if(p.locked || p.day !== d) return false;
-        const q = planById(p.planId); if(!q) return false;
-        const same = (pi.teacherId && q.teacherId === pi.teacherId) ||
-                     (pi.roomId && q.roomId === pi.roomId);
-        if(!same) return false;
-        const qs = spanOfCard(p);
-        return (span && qs) ? overlap(span, qs) : p.slot === s;
-      });
-      if(blockers.length !== 1) continue;
-
-      const b = blockers[0], bq = planById(b.planId);
-      const od = b.day, os = b.slot;
-      ctx.busyG.delete(bq.groupId + "|" + od + "|" + os);
-      occupy(ctx, bq, od, os, false);
-
-      let moved = null;
-      for(let d2=0; d2<D && !moved; d2++){
-        for(let s2=0; s2<S && !moved; s2++){
-          if(d2 === od && s2 === os) continue;
-          if(isFree(ctx, bq, d2, s2)) moved = {d:d2, s:s2};
-        }
-      }
-      if(moved){
-        b.day = moved.d; b.slot = moved.s;
-        occupy(ctx, bq, b.day, b.slot, true);
-        if(isFree(ctx, pi, d, s)){
-          out.push({id:uid(), planId:pi.id, day:d, slot:s, locked:false});
-          mark(pi, d, s, null);
-          return true;
-        }
-        occupy(ctx, bq, b.day, b.slot, false);   // не помогло — возвращаем как было
-        b.day = od; b.slot = os;
-      }
-      occupy(ctx, bq, od, os, true);
-    }
-  }
-  return false;
-}
-
 /** Подтягивает занятия вверх, если освободившееся место никому не мешает */
 function compact(list, ctx){
   for(let pass=0; pass<3; pass++){
@@ -1541,6 +1593,7 @@ function renderPanel(){
   else if(ui.tab === "res")  b.innerHTML = tplRes(T);
   else                       b.innerHTML = tplSettings(T);
   b.querySelectorAll(".res-item").forEach(markBadTimes);
+  lockCombosForTouch(b);
   document.querySelectorAll(".panel-tab").forEach(x => x.classList.toggle("is-on", x.dataset.tab === ui.tab));
 }
 
@@ -1878,6 +1931,27 @@ function renderIssues(){
    ============================================================ */
 let combo = null;
 
+/* Сенсорный ввод: тап по полю должен только раскрывать список.
+   Иначе он одновременно ставит курсор и поднимает клавиатуру, а та
+   закрывает собой то, что пользователь пришёл выбирать.
+
+   Решаем не по типу устройства, а по способу ввода: на ноутбуке с сенсорным
+   экраном мышью печатают как обычно, а пальцем получают выбор из списка. */
+let touchUsed = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+const isTouch = () => touchUsed;
+
+window.addEventListener("touchstart", () => {
+  if(touchUsed) return;
+  touchUsed = true;
+  lockCombosForTouch($("#panelBody"));
+}, {passive: true});
+
+/** Режим «только выбор»: поле не принимает ввод, значит и клавиатуру не зовёт */
+function lockCombosForTouch(root){
+  if(!isTouch() || !root) return;
+  root.querySelectorAll(".combo-in").forEach(i => { i.readOnly = true; });
+}
+
 /** Сколько строк нагрузки уже ссылается на эту запись */
 function comboUsage(kind, id){
   const key = kind === "subjects" ? "subjectId"
@@ -1916,6 +1990,7 @@ function comboClose(){
   if(!combo) return;
   combo.wrap.classList.remove("is-open");
   combo.menu.remove();
+  if(isTouch()) combo.input.readOnly = true;   // следующий тап снова только выбирает
   combo = null;
 }
 
@@ -1923,9 +1998,15 @@ function comboPlace(){
   if(!combo) return;
   const r = combo.input.getBoundingClientRect();
   const m = combo.menu;
+  // видимая высота, а не полная: на телефоне снизу может стоять клавиатура
+  const vv = window.visualViewport;
+  const viewH = vv ? vv.height : innerHeight;
+  const viewW = vv ? vv.width : innerWidth;
+
   m.style.width = Math.max(r.width, 200) + "px";
-  m.style.left = Math.max(8, Math.min(r.left, innerWidth - m.offsetWidth - 8)) + "px";
-  const below = innerHeight - r.bottom;
+  m.style.left = Math.max(8, Math.min(r.left, viewW - m.offsetWidth - 8)) + "px";
+
+  const below = viewH - r.bottom;
   if(below < 170 && r.top > below){          // места снизу мало — раскрываем вверх
     m.style.top = "auto";
     m.style.bottom = (innerHeight - r.top + 6) + "px";
@@ -1935,6 +2016,10 @@ function comboPlace(){
     m.style.top = (r.bottom + 6) + "px";
     m.style.maxHeight = Math.min(246, below - 14) + "px";
   }
+}
+// клавиатура выехала или уехала — список переставляем над ней
+if(window.visualViewport){
+  visualViewport.addEventListener("resize", () => { if(combo) comboPlace(); });
 }
 
 function comboFill(){
@@ -1968,6 +2053,13 @@ function comboFill(){
     h += `${list.length ? '<hr class="combo-sep">' : ""}
       <button type="button" class="combo-opt is-new" data-name="${esc(typed)}" title="Добавить нового ${esc(what)} в справочник">
         <span class="nm">+ Создать «${esc(typed)}»</span></button>`;
+  }
+
+  // на телефоне поле заблокировано для ввода — даём явный способ напечатать своё
+  if(isTouch() && combo.input.readOnly && !combo.wrap.dataset.nocreate){
+    h += `${h ? '<hr class="combo-sep">' : ""}
+      <button type="button" class="combo-opt is-manual" data-manual="1">
+        <span class="nm">✎ Ввести своё название</span></button>`;
   }
   if(!typed && combo.kind === "rooms" && all.length){
     h += `<hr class="combo-sep"><button type="button" class="combo-opt" data-name="" title="Не указывать помещение — тогда его занятость не проверяется">
@@ -2004,7 +2096,19 @@ document.addEventListener("mousedown", e => {
 });
 document.addEventListener("click", e => {
   const opt = e.target.closest(".combo-opt");
-  if(opt && combo){ comboPick(opt.dataset.name); return; }
+  if(opt && combo){
+    if(opt.dataset.manual){          // разблокируем поле и зовём клавиатуру
+      const input = combo.input;
+      input.readOnly = false;
+      combo.typed = true;
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+      comboFill(); comboPlace();
+      return;
+    }
+    comboPick(opt.dataset.name);
+    return;
+  }
   const arrow = e.target.closest(".combo-arrow");
   if(arrow){
     const input = arrow.parentElement.querySelector(".combo-in");
