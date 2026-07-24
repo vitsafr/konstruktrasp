@@ -3,6 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+<!-- Yandex.Metrika counter -->
+<script type="text/javascript">
+    (function(m,e,t,r,i,k,a){
+        m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+        m[i].l=1*new Date();
+        for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
+        k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
+    })(window, document,'script','https://mc.yandex.ru/metrika/tag.js?id=110997487', 'ym');
+
+    ym(110997487, 'init', {ssr:true, webvisor:true, clickmap:true, ecommerce:"dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce:true, trackLinks:true});
+</script>
+<noscript><div><img src="https://mc.yandex.ru/watch/110997487" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
+<!-- /Yandex.Metrika counter -->
+
 <title>Составь.рф — конструктор расписаний для школы, детского сада и вуза</title>
 <meta name="description" content="Бесплатный онлайн-конструктор расписания занятий. Автосборка без накладок у педагогов и кабинетов, правка мышкой, печать и экспорт в CSV и календарь. Без регистрации, данные остаются в браузере.">
 <link rel="canonical" href="https://xn--80ae8albg6e.xn--p1ai/">
@@ -1101,7 +1116,7 @@ function slotTimes(group){
   return out;
 }
 
-/** Время конкретной карточки: своё, если задано (перенесено из старого файла), иначе по сетке группы */
+/** Время карточки: своё, если перенесено из старого файла, иначе по сетке группы */
 function timeOf(p){
   if(p.time && p.time.start) return p.time;
   const pi = planById(p.planId); if(!pi) return null;
@@ -1268,7 +1283,10 @@ function autoBuild(){
   // отрезки слотов у каждой группы: у детсада они разные, у школы одинаковые
   const spans = {};
   state.groups.forEach(g => spans[g.id] = slotSpans(g));
-  const spanAt = (pi, s) => (spans[pi.groupId] || [])[s] || null;
+  // время слота одно на всю неделю (день игнорируем): у выровненных слотов оно
+  // согласовано и не пересекается, а перемешивать с per-day временами нельзя —
+  // в сдвинутый день сосед по времени наложится
+  const spanAt = (pi, d, s) => (spans[pi.groupId] || [])[s] || null;
 
   // блоки внутри дня: большой перерыв (> 2 ч) отделяет утро от занятий после сна.
   // Позиция считается внутри блока, иначе алгоритм принимает вечерний слот
@@ -1340,6 +1358,7 @@ function autoBuild(){
           cost += same * 7;                    // один предмет дважды в день — плохо
           const col = subjSlot.get(pi.groupId + "|" + pi.subjectId + "|s" + s) || 0;
           cost += col * 2.6;                   // и не столбиком в один и тот же час всю неделю
+          if(bi && bi.block > 0) cost -= 1.5;  // блок после сна заполняем охотнее, чем оставляем пустым
           if(gd > 0){                          // избегаем окон внутри дня
             const slots = out.filter(p => {
               const q = planById(p.planId);
@@ -1403,12 +1422,12 @@ function repairFill(best, D, S, spanAt){
       const g = groupOfId(pi.groupId);
       if(!slotAvailable(g, s)) return null;
       if(pi.locked) return null;
-      const span = spanAt(pi, s), hits = [];
+      const span = spanAt(pi, d, s), hits = [];
       for(const p of placed){
         if(p.day !== d) continue;
         const q = planById(p.planId); if(!q) continue;
         if(q.groupId === pi.groupId && p.slot === s){ if(p.locked) return null; hits.push(p); continue; }
-        const qs = spanAt(q, p.slot);
+        const qs = spanAt(q, p.day, p.slot);
         if(pi.teacherId && q.teacherId === pi.teacherId && overlap(span, qs)){ if(p.locked) return null; hits.push(p); continue; }
         if(pi.roomId && q.roomId === pi.roomId && overlap(span, qs)){ if(p.locked) return null; hits.push(p); }
       }
@@ -1455,7 +1474,7 @@ function repairFill(best, D, S, spanAt){
 function isFree(ctx, pi, d, s){
   if(!slotAvailable(byId(state.groups, pi.groupId), s)) return false;
   if(ctx.busyG.has(pi.groupId + "|" + d + "|" + s)) return false;
-  const span = ctx.spanAt(pi, s);
+  const span = ctx.spanAt(pi, d, s);
   const hit = (map, id) => {
     if(!id) return false;
     const arr = map.get(id + "|" + d);
@@ -1469,7 +1488,7 @@ function occupy(ctx, pi, d, s, on, span){
   const key = pi.groupId + "|" + d + "|" + s;
   if(on) ctx.busyG.add(key); else ctx.busyG.delete(key);
 
-  const sp = span || ctx.spanAt(pi, s) || {slot:s};
+  const sp = span || ctx.spanAt(pi, d, s) || {slot:s};
   const put = (map, id) => {
     if(!id) return;
     const k = id + "|" + d;
@@ -1838,7 +1857,13 @@ function renderGrid(){
   h += `</tr></thead><tbody>`;
 
   const focusGroup = ui.view === "group" ? byId(state.groups, ui.focus) : null;
-  for(let s=0; s<S; s++){
+  // в виде группы рисуем только её реальные слоты, а не общий максимум по саду —
+  // иначе внизу висят чужие «фейковые» строки, куда ещё и можно уронить карточку
+  let rows = (focusGroup && focusGroup.slots && focusGroup.slots.length) ? focusGroup.slots.length : S;
+  Object.keys(at).forEach(k => { const s = +k.split("|")[1]; if(s + 1 > rows) rows = s + 1; });  // но не прячем занятое
+  rows = Math.min(rows, S);
+
+  for(let s=0; s<rows; s++){
     const off = focusGroup && !slotAvailable(focusGroup, s);   // у группы нет такого занятия
     h += `<tr><td class="tcell ${off?"is-off":""}"><b>${s+1}</b>${times[s] ? times[s].start + "–" + times[s].end : ""}</td>`;
     for(let d=0; d<D; d++){
@@ -2868,34 +2893,83 @@ function convertLegacy(o){
     profile[gid] = {lessonMin: +t.lesson || 25, breakMin: +t.break || 10};
   }));
 
-  /** Таймлайн группы: для каждого номера занятия берём самое частое время из расписания */
-  const timelineOf = gid => {
-    const bySlot = {};
+  /**
+   * Выравнивание слотов по блокам дня. Раньше слот = порядковый номер занятия
+   * в дне, но у детсада число утренних занятий скачет, и вечернее занятие
+   * получало то индекс 2, то 3. Из-за этого одно время попадало в два слота и
+   * рождало скрытую накладку. Теперь утро занимает индексы 0..M-1, занятия
+   * после сна — свой блок дальше, и вечерний слот всегда на одном месте.
+   * Возвращает { slots: шаблон времён, lessonSlot: Map(занятие → индекс) }.
+   */
+  const alignGroup = gid => {
     const byDay = {};
     lessonsOf(gid).forEach(l => (byDay[l.day] ||= []).push(l));
+    if(!Object.keys(byDay).length) return null;
+
+    // распределяем времена начала по блокам: большой перерыв рвёт день
+    const uniq = [...new Set([].concat(...Object.values(byDay).map(list =>
+      list.map(l => toMin(legacyTime(l.start))))))].sort((a,b) => a-b);
+    const blockOfMin = {}; let blk = 0;
+    uniq.forEach((m,i) => { if(i>0 && m - uniq[i-1] >= BLOCK_GAP) blk++; blockOfMin[m] = blk; });
+    const blockCount = blk + 1;
+
+    // сколько слотов резервируем под каждый блок — максимум занятий блока за день
+    const maxInBlock = new Array(blockCount).fill(0);
     Object.values(byDay).forEach(list => {
-      list.sort((a,b) => legacyTime(a.start).localeCompare(legacyTime(b.start)));
-      list.forEach((l,i) => {
+      const cnt = new Array(blockCount).fill(0);
+      list.forEach(l => cnt[blockOfMin[toMin(legacyTime(l.start))]]++);
+      for(let b=0; b<blockCount; b++) maxInBlock[b] = Math.max(maxInBlock[b], cnt[b]);
+    });
+    const base = []; let acc = 0;
+    for(let b=0; b<blockCount; b++){ base[b] = acc; acc += maxInBlock[b]; }
+
+    // проход 1 — позиционно внутри блока, чтобы вычислить типовое время каждого слота
+    const tally = {};
+    Object.values(byDay).forEach(list => {
+      const sorted = [...list].sort((a,b) => legacyTime(a.start).localeCompare(legacyTime(b.start)));
+      const pos = new Array(blockCount).fill(0);
+      sorted.forEach(l => {
+        const b = blockOfMin[toMin(legacyTime(l.start))];
+        const slot = base[b] + pos[b]++;
         const key = legacyTime(l.start) + "|" + legacyTime(l.end);
-        ((bySlot[i] ||= {}))[key] = (bySlot[i][key] || 0) + 1;
+        ((tally[slot] ||= {}))[key] = (tally[slot][key] || 0) + 1;
       });
     });
-    const idx = Object.keys(bySlot).map(Number).sort((a,b) => a-b);
-    if(!idx.length) return null;
-    const out = [];
     const pr = profile[gid] || {lessonMin:25, breakMin:10};
-    for(let i=0; i<=idx[idx.length-1]; i++){
-      const tally = bySlot[i];
-      if(tally){
-        const top = Object.entries(tally).sort((a,b) => b[1] - a[1])[0][0].split("|");
-        out.push({start: top[0], end: top[1]});
-      }else{                                   // пропуск — достраиваем от предыдущего
-        const prev = out[out.length-1];
+    const slots = [];
+    for(let i=0; i<acc; i++){
+      const t = tally[i];
+      if(t){
+        const top = Object.entries(t).sort((a,b) => b[1] - a[1])[0][0].split("|");
+        slots.push({start: top[0], end: top[1]});
+      }else{                                   // блок-позиция без занятий — время от предыдущей
+        const prev = slots[i-1];
         const from = prev ? toMin(prev.end) + pr.breakMin : 9*60;
-        out.push({start: fmtMin(from), end: fmtMin(from + pr.lessonMin)});
+        slots.push({start: fmtMin(from), end: fmtMin(from + pr.lessonMin)});
       }
     }
-    return out;
+
+    // проход 2 — привязываем каждое занятие к ближайшему по времени слоту своего
+    // блока. В лёгкий день второе занятие в 10:30 попадёт в слот «10:30», а не в
+    // слот «09:40», иначе оно совпало бы по времени со слотом 10:30 при пересборке.
+    const lessonSlot = new Map();
+    Object.values(byDay).forEach(list => {
+      const used = new Set();
+      [...list].sort((a,b) => legacyTime(a.start).localeCompare(legacyTime(b.start))).forEach(l => {
+        const b = blockOfMin[toMin(legacyTime(l.start))];
+        const m = toMin(legacyTime(l.start));
+        let bestI = -1, bestD = Infinity;
+        for(let i=base[b]; i<base[b] + maxInBlock[b]; i++){
+          if(used.has(i)) continue;
+          const d = Math.abs(toMin(slots[i].start) - m);
+          if(d < bestD){ bestD = d; bestI = i; }
+        }
+        if(bestI < 0) bestI = base[b];         // подстраховка
+        used.add(bestI);
+        lessonSlot.set(l, bestI);
+      });
+    });
+    return {slots, lessonSlot};
   };
 
   const subjects = (o.subjects || []).map((s,i) => ({
@@ -2903,11 +2977,14 @@ function convertLegacy(o){
   }));
   const teachers = (o.teachers || []).map(t => ({id: t.id, name: t.name || "Педагог", maxPerDay: 0}));
 
+  const align = {};
+  (o.groups || []).forEach(g => align[g.id] = alignGroup(g.id));
+
   const groups = (o.groups || []).map(g => ({
     id: g.id,
     name: g.name + (g.age ? " · " + g.age : ""),
     maxPerDay: 0,
-    slots: timelineOf(g.id) || undefined
+    slots: align[g.id] ? align[g.id].slots : undefined
   }));
 
   // кто фактически ведёт предмет у группы: расписание важнее справочника
@@ -2940,28 +3017,24 @@ function convertLegacy(o){
     });
   });
 
-  // расписание → карточки. Слот = порядковый номер занятия в этом дне.
+  // расписание → карточки. Слот — выровненный по блокам индекс (см. alignGroup).
   const placements = [];
   let maxSlots = 1;
   (o.groups || []).forEach(g => {
-    const byDay = {};
-    lessonsOf(g.id).forEach(l => (byDay[l.day] ||= []).push(l));
-    Object.entries(byDay).forEach(([day, list]) => {
-      list.sort((a,b) => legacyTime(a.start).localeCompare(legacyTime(b.start)));
-      list.forEach((l, slot) => {
-        const key = g.id + "|" + l.a;
-        let row = rowOf[key];
-        if(!row){                       // занятие есть, а нормы под него нет — заводим строку
-          row = {id: uid(), groupId: g.id, subjectId: l.a,
-                 teacherId: l.teacherA || teacherFor(g, l.a), roomId: null, hours: 0};
-          rowOf[key] = row; plan.push(row);
-        }
-        placements.push({
-          id: uid(), planId: row.id, day: +day, slot, locked: false,
-          time: {start: legacyTime(l.start), end: legacyTime(l.end)}
-        });
-        if(slot + 1 > maxSlots) maxSlots = slot + 1;
-      });
+    const map = align[g.id] ? align[g.id].lessonSlot : null;
+    lessonsOf(g.id).forEach(l => {
+      const slot = map ? map.get(l) : 0;
+      if(slot == null) return;
+      const key = g.id + "|" + l.a;
+      let row = rowOf[key];
+      if(!row){                       // занятие есть, а нормы под него нет — заводим строку
+        row = {id: uid(), groupId: g.id, subjectId: l.a,
+               teacherId: l.teacherA || teacherFor(g, l.a), roomId: null, hours: 0};
+        rowOf[key] = row; plan.push(row);
+      }
+      placements.push({id: uid(), planId: row.id, day: +l.day, slot, locked: false,
+                       time: {start: legacyTime(l.start), end: legacyTime(l.end)}});
+      if(slot + 1 > maxSlots) maxSlots = slot + 1;
     });
   });
 
