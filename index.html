@@ -322,6 +322,31 @@ input[type=number]{-moz-appearance:textfield}
 .t-in::placeholder{font-weight:400; color:var(--muted); opacity:.55}
 .t-in.is-bad{border-color:var(--warn); background:var(--warn-bg); color:var(--warn)}
 
+/* ---------- Смены педагога по дням ---------- */
+.shift-row{
+  display:flex; align-items:center; gap:4px; flex-wrap:wrap;
+  padding:0 4px 8px 10px; margin:-4px 0 4px;
+}
+.shift-lbl{font-size:11px; color:var(--muted); margin-right:2px; cursor:help}
+.shift-day{
+  display:inline-flex; align-items:center; gap:3px; line-height:1;
+  border:1px solid var(--line-2); background:var(--surface);
+  border-radius:8px; padding:4px 6px;
+  font-size:11px; font-weight:650; color:var(--ink-2);
+  transition:transform .2s var(--ease), background .18s var(--ease), border-color .18s var(--ease);
+}
+.shift-day:hover{transform:translateY(-1px)}
+.shift-day i{font-style:normal; font-size:10px; font-weight:800}
+.shift-day.is-a{color:var(--muted)}
+.shift-day.is-a i{opacity:.4}
+.shift-day.is-1{background:#e9f1f8; border-color:#b6cee5; color:#35678f}
+.shift-day.is-2{background:#fdf0e0; border-color:#e7c295; color:#9c5f1c}
+.shift-day.is-x{background:var(--bg-2); color:var(--muted); opacity:.7}
+.shift-day.is-x span, .shift-day.is-x{text-decoration:none}
+/* пальцем — цель побольше (класс ставится при первом касании) */
+body.is-touch .shift-day{padding:8px 10px; font-size:12.5px; border-radius:9px}
+body.is-touch .shift-row{gap:5px; padding-bottom:10px}
+
 /* ---------- Выпадающий список: предметы, педагоги, кабинеты ---------- */
 .combo{position:relative; flex:1 1 auto; min-width:0; display:flex}
 .combo-in{width:100%; padding-right:26px !important}
@@ -392,6 +417,9 @@ input[type=number]{-moz-appearance:textfield}
   .combo-opt{padding:11px 10px; font-size:14px; min-height:44px}
   .combo-menu{padding:6px}
   .combo-opt.is-manual{color:var(--accent)}
+  /* смены пальцем: цель побольше */
+  .shift-day{padding:7px 9px; font-size:12px; border-radius:9px}
+  .shift-row{gap:5px; padding-bottom:10px}
 }
 .t-dash{flex:0 0 auto; color:var(--muted); font-size:12px}
 .field .t-in{text-align:left; padding:8px 10px; font-size:14px}
@@ -1041,6 +1069,35 @@ const STORE_KEY = "konstruktr-raspisaniy-v2";
 // перерыв длиннее этого (мин) считается границей блока дня: утро / после сна
 const BLOCK_GAP = 120;
 
+/* ---------- Смены педагогов ----------
+   Специалист может работать в первую смену по одним дням и во вторую по другим:
+   логопед в понедельник с утра, в среду после сна. Храним у педагога массив из
+   7 значений — по одному на день недели. */
+const SHIFT_START_DEFAULT = "13:00";     // со скольки начинается вторая смена
+const SHIFT_ORDER = ["a", "1", "2", "x"];
+const SHIFT_LABEL = {a:"∀", "1":"1", "2":"2", x:"—"};
+const SHIFT_TITLE = {a:"любая смена", "1":"только первая смена", "2":"только вторая смена", x:"выходной"};
+
+const shiftBoundary = () => toMin(state.settings.shiftStart || SHIFT_START_DEFAULT) ?? 13*60;
+const normShifts = v => {
+  const out = new Array(7).fill("a");
+  if(Array.isArray(v)) for(let i=0;i<7;i++) if(SHIFT_ORDER.includes(v[i])) out[i] = v[i];
+  return out;
+};
+/** Режим педагога в этот день: a — любая, 1 — первая, 2 — вторая, x — выходной */
+const shiftMode = (t, day) => (t && Array.isArray(t.shifts) && t.shifts[day]) || "a";
+
+/** Можно ли поставить педагогу занятие в этот день на это время */
+function shiftAllows(t, day, startMin){
+  const m = shiftMode(t, day);
+  if(m === "a") return true;
+  if(m === "x") return false;
+  if(startMin == null) return true;                 // время неизвестно — не мешаем
+  return (startMin >= shiftBoundary() ? "2" : "1") === m;
+}
+/** Работает ли педагог хоть когда-нибудь не по умолчанию — для подписи в списке */
+const hasShiftRules = t => Array.isArray(t.shifts) && t.shifts.some(x => x && x !== "a");
+
 /* ============================================================
    СОСТОЯНИЕ
    ============================================================ */
@@ -1280,6 +1337,20 @@ function computeConflicts(){
       }
     }
   });
+  // занятие попало в смену, когда педагог не работает
+  state.placements.forEach(p => {
+    const pi = planById(p.planId); if(!pi || !pi.teacherId) return;
+    const t = teacherOf(pi), sp = spanOf(p);
+    if(shiftAllows(t, p.day, sp ? sp[0] : null)) return;
+    add(p.id, "shift");
+    const m = shiftMode(t, p.day);
+    const tm = timeOf(p);
+    list.push({kind:"shift",
+      text:(t?.name || "—") + " — " + (m === "x" ? "в этот день не работает" : "работает только в " + (m === "1" ? "первую" : "вторую") + " смену"),
+      where: DAY_SHORT[p.day] + (tm ? ", " + tm.start + "–" + tm.end : ""),
+      detail:(groupOf(pi)?.name || "?") + " · " + (subjOf(pi)?.name || "?")});
+  });
+
   // схлопываем дубли
   const seen = new Set();
   const uniq = list.filter(x => {
@@ -1479,6 +1550,7 @@ function repairFill(best, D, S, spanAt){
       if(!slotAvailable(g, s)) return null;
       if(pi.locked) return null;
       const span = spanAt(pi, d, s), hits = [];
+      if(pi.teacherId && !shiftAllows(teacherOf(pi), d, span ? span[0] : null)) return null;
       for(const p of placed){
         if(p.day !== d) continue;
         const q = planById(p.planId); if(!q) continue;
@@ -1531,6 +1603,8 @@ function isFree(ctx, pi, d, s){
   if(!slotAvailable(byId(state.groups, pi.groupId), s)) return false;
   if(ctx.busyG.has(pi.groupId + "|" + d + "|" + s)) return false;
   const span = ctx.spanAt(pi, d, s);
+  // педагог в этот день работает в другую смену или отдыхает
+  if(pi.teacherId && !shiftAllows(teacherOf(pi), d, span ? span[0] : null)) return false;
   const hit = (map, id) => {
     if(!id) return false;
     const arr = map.get(id + "|" + d);
@@ -1760,10 +1834,22 @@ function tplRes(T){
         <button class="x" data-act="delRes" data-kind="${key}" data-id="${it.id}"
                 title="Удалить «${esc(it.name)}» из списка">×</button>
       </div>`;
+      if(key === "teachers") h += shiftStrip(it, T);
     });
     h += `</div><button class="btn btn-sm" style="width:100%;justify-content:center" data-act="addRes" data-kind="${key}">+ Добавить</button>`;
     return h;
   };
+
+  /** Полоска смен под педагогом: по кнопке на каждый учебный день */
+  function shiftStrip(t, T){
+    let h = `<div class="shift-row"><span class="shift-lbl" title="В какую смену ${esc(T.personGen)} «${esc(t.name)}» работает в каждый день недели. Нажимай на день, чтобы переключить">Смены</span>`;
+    for(let d=0; d<dayCount(); d++){
+      const m = shiftMode(t, d);
+      h += `<button class="shift-day is-${m}" data-act="shiftDay" data-id="${t.id}" data-d="${d}"
+              title="${DAY_NAMES[d]} — ${esc(SHIFT_TITLE[m])}. Нажми, чтобы сменить">${DAY_SHORT[d]}<i>${SHIFT_LABEL[m]}</i></button>`;
+    }
+    return h + `</div>`;
+  }
 
   const capFor = whose => it =>
     `Сколько ${T.slotGen} максимум в день у ${whose} «${it.name}»: ` +
@@ -1778,7 +1864,9 @@ function tplRes(T){
        + block("teachers", T.teachers, state.teachers,
                capFor(T.personGen),
                it => `Имя ${T.personGen} «${it.name}» — подставляется в карточки занятий и в сводку нагрузки при печати`)
-       + `<p class="hint">Поле справа — сколько ${T.slotGen} максимум в день у ${T.personGen}. Пусто (∞) — без ограничения.</p><div class="sep"></div>`
+       + `<p class="hint">Поле справа — сколько ${T.slotGen} максимум в день у ${T.personGen}. Пусто (∞) — без ограничения.
+          Ниже — смены: <b>∀</b> любая, <b>1</b> только первая, <b>2</b> только вторая, <b>—</b> выходной.
+          Вторая смена начинается в ${esc(state.settings.shiftStart || SHIFT_START_DEFAULT)} — это меняется в «Настройках».</p><div class="sep"></div>`
        + block("rooms", T.rooms, state.rooms, null,
                it => `Название ${T.roomGen} «${it.name}» — конструктор следит, чтобы он не был занят двумя занятиями одновременно`);
 }
@@ -1829,6 +1917,14 @@ function tplSettings(T){
       <label>Длинный перерыв длится, мин</label>
       <input type="number" min="0" max="600" step="5" value="${st.bigBreakMin}" data-act="set" data-key="bigBreakMin"
              title="Сколько минут длится тот самый длинный перерыв. Им же задаётся вечерний блок: поставь столько минут, чтобы следующее занятие попало на нужный час"></div>
+    <div class="sep"></div>
+    <div class="field">
+      <label>Вторая смена начинается в</label>
+      <input type="text" class="t-in" inputmode="numeric" maxlength="5" placeholder="${SHIFT_START_DEFAULT}"
+             value="${esc(st.shiftStart || SHIFT_START_DEFAULT)}" data-act="set" data-key="shiftStart"
+             title="Занятия, начинающиеся с этого времени, считаются второй сменой. По этой границе конструктор решает, куда можно ставить ${esc(T.personGen)}, работающего в определённую смену">
+      <p class="hint">Кому в какую смену работать — задаётся у каждого ${esc(T.personGen)} на вкладке «Ресурсы».</p>
+    </div>
     <div class="sep"></div>
     <div class="panel-h">
       <span>Звонки${g ? " · " + esc(g.name) : ""}</span>
@@ -1973,6 +2069,7 @@ function cardHTML(p, cmap, readonly){
   if(why.includes("teacher")) flags.push(`<span title="${esc(t?t.name:"")} занят в это же время">👤</span>`);
   if(why.includes("room"))    flags.push(`<span title="${esc(r?r.name:"")} занят в это же время">🚪</span>`);
   if(why.includes("group"))   flags.push(`<span title="Две карточки в одной клетке">⚠</span>`);
+  if(why.includes("shift"))   flags.push(`<span title="${esc(t?t.name:"")} в этот день работает в другую смену">🕒</span>`);
   // по людям колонки времени слева нет — печатаем время в клетке; в группе оно уже в колонке
   const tm = readonly ? timeOf(p) : (p.time && p.time.start ? p.time : null);
   const timeTag = tm && tm.start ? `<span class="c-time">${esc(tm.start)}–${esc(tm.end)}</span>` : "";
@@ -2061,8 +2158,10 @@ const isTouch = () => touchUsed;
 window.addEventListener("touchstart", () => {
   if(touchUsed) return;
   touchUsed = true;
+  document.body.classList.add("is-touch");   // крупнее цели для пальца
   lockCombosForTouch($("#panelBody"));
 }, {passive: true});
+if(touchUsed) document.body.classList.add("is-touch");
 
 /** Режим «только выбор»: поле не принимает ввод, значит и клавиатуру не зовёт */
 function lockCombosForTouch(root){
@@ -2468,6 +2567,13 @@ $("#panelBody").addEventListener("click", e => {
       state.plan.forEach(p => { if(p[key] === id) p[key] = null; });
       if(ui.focus === id) ui.focus = null;
     }
+    commit();
+  }
+  else if(act === "shiftDay"){
+    const t = byId(state.teachers, el.dataset.id); if(!t) return;
+    const d = +el.dataset.d;
+    t.shifts = normShifts(t.shifts);
+    t.shifts[d] = SHIFT_ORDER[(SHIFT_ORDER.indexOf(t.shifts[d]) + 1) % SHIFT_ORDER.length];
     commit();
   }
   else if(act === "mode"){
@@ -3338,7 +3444,7 @@ function normalize(s){
   s.mode = MODES[s.mode] ? s.mode : "school";
   s.settings = {...MODES[s.mode].settings, ...(s.settings||{})};
   s.subjects   = (s.subjects||[]).map((x,i) => ({color:PALETTE[i % PALETTE.length], ...x}));
-  s.teachers   = s.teachers || [];
+  s.teachers   = (s.teachers||[]).map(t => ({...t, shifts: normShifts(t.shifts)}));
   s.rooms      = s.rooms || [];
   s.groups     = s.groups || [];
   s.plan       = (s.plan||[]).map(p => ({hours:1, ...p}));
