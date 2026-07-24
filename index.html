@@ -2836,14 +2836,76 @@ $("#prCancel").addEventListener("click", () => $("#printScrim").classList.remove
 $("#printScrim").addEventListener("click", e => { if(e.target === $("#printScrim")) $("#prCancel").click(); });
 $("#prGo").addEventListener("click", () => {
   $("#printScrim").classList.remove("is-open");
-  buildPrintPages(printCfg);
-  setTimeout(() => window.print(), 80);
+  printViaIframe(printCfg);
 });
 
-window.addEventListener("afterprint", () => {
-  const old = document.getElementById("printRoot");
-  if(old) old.remove();
-});
+// печатные стили для изолированного документа в iframe
+const PRINT_CSS = `
+@page{size:A4 landscape; margin:11mm}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:"Segoe UI",system-ui,-apple-system,Arial,sans-serif; color:#2b211a; background:#fff;
+  -webkit-print-color-adjust:exact; print-color-adjust:exact; font-size:11pt}
+.print-page{page-break-after:always; padding-top:2mm}
+.print-page:last-child{page-break-after:auto}
+.print-head{display:flex; align-items:baseline; justify-content:space-between; border-bottom:2px solid #2b211a; padding-bottom:5px; margin-bottom:9px}
+.print-head h2{font-family:Georgia,"Times New Roman",serif; font-weight:400; font-size:17pt; margin:0}
+.print-head span{font-size:9pt; color:#555; white-space:nowrap; padding-left:10pt}
+table.grid{border-collapse:collapse; width:100%; table-layout:fixed}
+table.grid th, table.grid td{border:.6pt solid #b9a893; vertical-align:top}
+table.grid th{padding:4pt 2pt; font-size:8pt; color:#000; background:#f2e8db; text-align:center}
+table.grid th.corner, table.grid td.tcell{width:62pt}
+table.grid td.tcell{padding:3pt; font-size:7.5pt; text-align:center}
+table.grid td.tcell b{font-size:10pt; display:block}
+.cell{min-height:44pt}
+.card{padding:4pt}
+.card .c-time{font-size:7.5pt; font-weight:700; color:#000; display:block}
+.card .c-title{font-size:9.5pt; font-weight:700; display:block}
+.card .c-sub{font-size:8pt; color:#333; white-space:normal; display:block}
+.card .c-flags,.card .pin{display:none}
+.load-table{width:100%; border-collapse:collapse; font-size:9pt}
+.load-table th,.load-table td{border:.6pt solid #b9a893; padding:5pt 7pt; text-align:left; vertical-align:top}
+.load-table th{background:#f2e8db; font-size:8.5pt}
+.load-table td.num{text-align:center; font-weight:700; width:64pt}
+.load-table .who{font-weight:700}
+.load-table .brk{font-size:8.5pt; color:#333}
+.load-table .brk b{font-weight:700; color:#000}
+.load-total td{border-top:1pt solid #2b211a; font-weight:700; background:#faf5ec}
+`;
+
+/**
+ * Печать через изолированный iframe. Надёжнее, чем «спрятать всё через @media
+ * print»: на телефонах тот подход часто печатал пустой лист. Здесь iframe
+ * содержит только листы расписания и печатает ровно их.
+ */
+function printViaIframe(cfg){
+  buildPrintPages(cfg);
+  const root = document.getElementById("printRoot");
+  const inner = root ? root.innerHTML : "";
+  if(root) root.remove();
+
+  const doc = `<!doctype html><html lang="ru"><head><meta charset="utf-8">` +
+    `<title>${esc(state.title || "Расписание")}</title><style>${PRINT_CSS}</style></head>` +
+    `<body>${inner}</body></html>`;
+
+  const frame = document.createElement("iframe");
+  frame.setAttribute("aria-hidden", "true");
+  frame.style.cssText = "position:fixed; left:-9999px; top:0; width:1px; height:1px; border:0";
+  document.body.appendChild(frame);
+
+  let done = false;
+  const go = () => {
+    if(done) return; done = true;               // печатаем один раз, даже если оба пути сработают
+    try{ frame.contentWindow.focus(); frame.contentWindow.print(); }
+    catch(e){ window.print(); }                 // на всякий случай — печать основного окна
+    setTimeout(() => frame.remove(), 2000);
+  };
+  frame.onload = () => setTimeout(go, 80);       // ждём отрисовку содержимого iframe
+
+  const fdoc = frame.contentWindow.document;
+  fdoc.open(); fdoc.write(doc); fdoc.close();
+  setTimeout(go, 400);                           // страховка, если onload не пришёл
+}
 
 function buildPrintPages(cfg){
   cfg = cfg || defaultPrintCfg();
