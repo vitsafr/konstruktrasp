@@ -157,7 +157,8 @@ button{cursor:pointer}
   content:""; position:absolute; left:12px; right:12px; bottom:-1px; height:2px;
   background:var(--accent); border-radius:2px;
 }
-.panel-body{padding:16px; overflow-y:auto; overscroll-behavior:contain}
+/* overscroll-behavior не ставим: дойдя до края, панель отдаёт прокрутку странице */
+.panel-body{padding:16px; overflow-y:auto}
 .panel-body::-webkit-scrollbar{width:9px}
 .panel-body::-webkit-scrollbar-thumb{background:var(--line-2); border-radius:9px; border:3px solid var(--surface)}
 
@@ -204,6 +205,55 @@ input[type=number]{-moz-appearance:textfield}
 }
 .t-in::placeholder{font-weight:400; color:var(--muted); opacity:.55}
 .t-in.is-bad{border-color:var(--warn); background:var(--warn-bg); color:var(--warn)}
+
+/* ---------- Выпадающий список: предметы, педагоги, кабинеты ---------- */
+.combo{position:relative; flex:1 1 auto; min-width:0; display:flex}
+.combo-in{width:100%; padding-right:26px !important}
+.combo-arrow{
+  position:absolute; right:4px; top:50%; transform:translateY(-50%);
+  width:20px; height:20px; border:none; background:transparent; padding:0;
+  display:grid; place-items:center; border-radius:6px;
+  color:var(--muted); font-size:9px; line-height:1;
+  transition:background .18s var(--ease), color .18s var(--ease), transform .25s var(--ease);
+}
+.combo-arrow:hover{background:var(--bg-2); color:var(--ink-2)}
+.combo.is-open .combo-arrow{transform:translateY(-50%) rotate(180deg); color:var(--accent)}
+.combo.is-open .combo-in{border-color:var(--accent); background:#fff; box-shadow:0 0 0 3px rgba(210,112,63,.13)}
+
+.combo-menu{
+  position:fixed; z-index:70;
+  background:var(--surface); border:1px solid var(--line-2);
+  border-radius:var(--r-l); box-shadow:var(--sh-2);
+  padding:5px; max-height:246px; overflow-y:auto; overscroll-behavior:contain;
+}
+.combo-menu::-webkit-scrollbar{width:8px}
+.combo-menu::-webkit-scrollbar-thumb{background:var(--line-2); border-radius:8px; border:2px solid var(--surface)}
+.combo-opt{
+  display:flex; align-items:center; gap:8px; width:100%;
+  border:none; background:transparent; text-align:left;
+  padding:7px 9px; border-radius:10px;
+  font-size:13px; font-weight:600; color:var(--ink);
+  transition:background .14s var(--ease);
+}
+.combo-opt:hover{background:var(--surface-2)}
+.combo-opt.is-active{background:var(--accent-in); box-shadow:inset 0 0 0 1px var(--line-2)}
+.combo-opt.is-current{color:var(--accent)}
+.combo-opt .dot{width:11px; height:11px; border-radius:4px; flex:0 0 auto; border:1px solid rgba(0,0,0,.08)}
+.combo-opt .nm{flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.combo-opt .use{flex:0 0 auto; font-size:11px; font-weight:600; color:var(--muted)}
+.combo-opt.is-new{color:var(--accent)}
+.combo-opt.is-new .nm{font-weight:700}
+.combo-sep{border:none; border-top:1px solid var(--line); margin:4px 7px}
+/* переключатель группы в шапке нагрузки — шире и заметнее обычного поля */
+.combo-pick{display:flex; margin-bottom:14px}
+.combo-pick .combo-in{
+  padding:9px 30px 9px 12px !important;
+  font-size:14px; font-weight:700; background:var(--surface);
+  border-color:var(--line-2); cursor:pointer;
+}
+.combo-pick .combo-in:hover{background:#fff; border-color:var(--accent)}
+.combo-pick .combo-arrow{right:7px; width:22px; height:22px; font-size:10px}
+.combo-empty{padding:10px 9px; font-size:12px; color:var(--muted); line-height:1.4}
 .t-dash{flex:0 0 auto; color:var(--muted); font-size:12px}
 .field .t-in{text-align:left; padding:8px 10px; font-size:14px}
 .res-item .cap input{padding:4px 6px;font-size:12px;text-align:center}
@@ -483,16 +533,16 @@ td.tcell.is-off{opacity:.4}
   <input class="title-input" id="orgTitle" type="text" placeholder="Название учреждения" aria-label="Название учреждения">
 
   <div class="tools">
-    <button class="btn btn-primary" id="btnBuild">
+    <button class="btn btn-primary" id="btnBuild" title="Разложить всю нагрузку по клеткам заново: без накладок у педагогов и кабинетов, без окон. Закреплённые карточки останутся на местах">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4.5 13H11l-1 9 8.5-11H12z"/></svg>
       <span class="lbl">Собрать расписание</span>
     </button>
-    <button class="btn" id="btnPrint" title="Печать всех расписаний">
+    <button class="btn" id="btnPrint" title="Напечатать расписание каждой группы на отдельном листе плюс сводную нагрузку педагогов">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>
       <span class="lbl">Печать</span>
     </button>
     <div class="menu-wrap">
-      <button class="btn" id="btnFile">
+      <button class="btn" id="btnFile" title="Сохранить проект в файл, выгрузить таблицу или календарь, открыть чужой файл">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
         <span class="lbl">Файл</span>
       </button>
@@ -501,8 +551,10 @@ td.tcell.is-off{opacity:.4}
         <button data-act="csv">Выгрузить таблицу <small>.csv — для Excel и Google Таблиц</small></button>
         <button data-act="ics">Календарь <small>.ics — импорт в календарь</small></button>
         <hr>
-        <button data-act="import">Открыть проект… <small>загрузить .json</small></button>
-        <button data-act="reset">Начать заново <small>сбросить всё до примера</small></button>
+        <button data-act="import">Открыть проект… <small>загрузить сохранённый .json</small></button>
+        <hr>
+        <button data-act="example">Показать пример <small>школа с готовой нагрузкой — посмотреть, как устроено</small></button>
+        <button data-act="reset">Сбросить всё <small>очистить конструктор до пустого</small></button>
       </div>
     </div>
   </div>
@@ -512,8 +564,8 @@ td.tcell.is-off{opacity:.4}
   <!-- ================= ПАНЕЛЬ ================= -->
   <aside class="panel no-print">
     <div class="panel-tabs">
-      <button class="panel-tab is-on" data-tab="plan">Нагрузка</button>
       <button class="panel-tab" data-tab="res">Ресурсы</button>
+      <button class="panel-tab is-on" data-tab="plan">Нагрузка</button>
       <button class="panel-tab" data-tab="set">Настройки</button>
     </div>
     <div class="panel-body" id="panelBody"></div>
@@ -583,6 +635,7 @@ td.tcell.is-off{opacity:.4}
     <h2 id="askTitle">Заголовок</h2>
     <p id="askText">Текст</p>
     <div class="modal-actions">
+      <button class="btn" id="askExtra" style="margin-right:auto" hidden>Сохранить проект</button>
       <button class="btn btn-ghost" id="askNo">Отмена</button>
       <button class="btn btn-primary" id="askYes">Да</button>
     </div>
@@ -591,9 +644,6 @@ td.tcell.is-off{opacity:.4}
 
 <div class="toast" id="toast"></div>
 <input type="file" id="fileInput" accept="application/json,.json" hidden>
-<datalist id="dlSubjects"></datalist>
-<datalist id="dlTeachers"></datalist>
-<datalist id="dlRooms"></datalist>
 
 <script>
 "use strict";
@@ -615,22 +665,22 @@ const AD_CONFIG = {
 const MODES = {
   school: {
     name: "Школа",
-    terms: {group:"Класс", groups:"Классы", teacher:"Учитель", teachers:"Учителя", room:"Кабинет", rooms:"Кабинеты", subject:"Предмет", subjects:"Предметы", slot:"Урок", slots:"Уроков в день", person:"учитель"},
+    terms: {group:"Класс", groups:"Классы", teacher:"Учитель", teachers:"Учителя", room:"Кабинет", rooms:"Кабинеты", subject:"Предмет", subjects:"Предметы", slot:"Урок", slotFew:"урока", slotGen:"уроков", slotOrd:"й урок", slots:"Уроков в день", person:"учитель", who:"Кто ведёт", where:"Где проходит", groupGen:"класса", personGen:"учителя", roomGen:"кабинета", subjectGen:"предмета"},
     settings: {dayCount:6, slotCount:7, startTime:"08:30", lessonMin:45, breakMin:10, bigBreakAfter:3, bigBreakMin:20}
   },
   uni: {
     name: "Вуз / колледж",
-    terms: {group:"Группа", groups:"Группы", teacher:"Преподаватель", teachers:"Преподаватели", room:"Аудитория", rooms:"Аудитории", subject:"Дисциплина", subjects:"Дисциплины", slot:"Пара", slots:"Пар в день", person:"преподаватель"},
+    terms: {group:"Группа", groups:"Группы", teacher:"Преподаватель", teachers:"Преподаватели", room:"Аудитория", rooms:"Аудитории", subject:"Дисциплина", subjects:"Дисциплины", slot:"Пара", slotFew:"пары", slotGen:"пар", slotOrd:"я пара", slots:"Пар в день", person:"преподаватель", who:"Кто ведёт", where:"Где проходит", groupGen:"группы", personGen:"преподавателя", roomGen:"аудитории", subjectGen:"дисциплины"},
     settings: {dayCount:6, slotCount:5, startTime:"09:00", lessonMin:90, breakMin:10, bigBreakAfter:2, bigBreakMin:40}
   },
   kinder: {
     name: "Детский сад",
-    terms: {group:"Группа", groups:"Группы", teacher:"Педагог", teachers:"Педагоги", room:"Помещение", rooms:"Помещения", subject:"Занятие", subjects:"Виды занятий", slot:"Занятие", slots:"Занятий в день", person:"педагог"},
+    terms: {group:"Группа", groups:"Группы", teacher:"Педагог", teachers:"Педагоги", room:"Помещение", rooms:"Помещения", subject:"Занятие", subjects:"Виды занятий", slot:"Занятие", slotFew:"занятия", slotGen:"занятий", slotOrd:"е занятие", slots:"Занятий в день", person:"педагог", who:"Кто ведёт", where:"Где проходит", groupGen:"группы", personGen:"педагога", roomGen:"помещения", subjectGen:"вида занятия"},
     settings: {dayCount:5, slotCount:4, startTime:"09:00", lessonMin:25, breakMin:15, bigBreakAfter:2, bigBreakMin:60}
   },
   shift: {
     name: "Смены",
-    terms: {group:"Точка", groups:"Точки", teacher:"Сотрудник", teachers:"Сотрудники", room:"Пост", rooms:"Посты", subject:"Тип смены", subjects:"Типы смен", slot:"Смена", slots:"Смен в день", person:"сотрудник"},
+    terms: {group:"Точка", groups:"Точки", teacher:"Сотрудник", teachers:"Сотрудники", room:"Пост", rooms:"Посты", subject:"Тип смены", subjects:"Типы смен", slot:"Смена", slotFew:"смены", slotGen:"смен", slotOrd:"я смена", slots:"Смен в день", person:"сотрудник", who:"Кто работает", where:"Где работает", groupGen:"точки", personGen:"сотрудника", roomGen:"поста", subjectGen:"типа смены"},
     settings: {dayCount:7, slotCount:3, startTime:"08:00", lessonMin:480, breakMin:0, bigBreakAfter:0, bigBreakMin:0}
   }
 };
@@ -651,7 +701,7 @@ const STORE_KEY = "konstruktr-raspisaniy-v2";
    СОСТОЯНИЕ
    ============================================================ */
 let state = null;
-let ui = { tab:"plan", view:"group", focus:null, picked:null, dragging:null, menuOpen:false, lastAdAt:0 };
+let ui = { tab:"plan", view:"group", focus:null, planGroup:null, picked:null, dragging:null, menuOpen:false, lastAdAt:0 };
 
 const uid = () => Math.random().toString(36).slice(2,9);
 const byId = (arr,id) => arr.find(x => x.id === id) || null;
@@ -702,6 +752,27 @@ function demoState(){
     subjects, teachers, rooms, groups, plan,
     placements: []
   };
+}
+
+/* ---------- Пустой проект ---------- */
+function emptyState(){
+  return {
+    v: 2,
+    title: "Новое расписание",
+    mode: "school",
+    settings: {...MODES.school.settings},
+    subjects: [], teachers: [], rooms: [], groups: [], plan: [], placements: []
+  };
+}
+
+/** Короткая сводка того, что сейчас в конструкторе — для предупреждений */
+function describeState(){
+  if(!state.groups.length && !state.plan.length) return "пока пусто";
+  return [
+    `${terms().groups.toLowerCase()} — ${state.groups.length}`,
+    `строк нагрузки — ${state.plan.length}`,
+    `расставленных карточек — ${state.placements.length}`
+  ].join(", ");
 }
 
 /* ---------- Хранилище ---------- */
@@ -846,7 +917,7 @@ function computeConflicts(){
         const t = timeOf(arr[i]);
         const when = DAY_SHORT[d] + ", " + (t
           ? t.start + "–" + t.end
-          : (arr[i].slot+1) + "-" + (state.mode==="shift" ? "я смена" : "й " + terms().slot.toLowerCase()));
+          : (arr[i].slot+1) + "-" + terms().slotOrd);
         if(a.teacherId && a.teacherId === b.teacherId){
           add(arr[i].id,"teacher"); add(arr[j].id,"teacher");
           list.push({kind:"teacher", text:(teacherOf(a)?.name||"—") + " — в двух местах сразу", where:when,
@@ -1199,7 +1270,6 @@ function render(){
   renderGrid();
   renderBank();
   renderIssues();
-  renderDatalists();
   $("#orgTitle").value = state.title;
 }
 
@@ -1211,13 +1281,15 @@ function renderPanel(){
   else if(ui.tab === "res")  b.innerHTML = tplRes(T);
   else                       b.innerHTML = tplSettings(T);
   b.querySelectorAll(".res-item").forEach(markBadTimes);
+  document.querySelectorAll(".panel-tab").forEach(x => x.classList.toggle("is-on", x.dataset.tab === ui.tab));
 }
 
 function currentGroup(){
   if(ui.view === "group"){
     return byId(state.groups, ui.focus) || state.groups[0] || null;
   }
-  return state.groups[0] || null;
+  // в виде «По людям» доска показывает педагога, а нагрузку правим у выбранной группы
+  return byId(state.groups, ui.planGroup) || state.groups[0] || null;
 }
 
 function tplPlan(T){
@@ -1229,9 +1301,14 @@ function tplPlan(T){
 
   let html = `
     <div class="panel-h">
-      <span>Нагрузка · ${esc(g.name)}</span>
-      <span class="count">${done} из ${total} ${state.mode==="shift"?"смен":"ч"}</span>
-    </div>`;
+      <span>Чью нагрузку заполняем</span>
+      <span class="count" title="Расставлено ${done} из ${total} — остальное лежит в «Не расставлено»">${done} из ${total} ${state.mode==="shift"?"смен":"ч"}</span>
+    </div>
+    <span class="combo combo-pick" data-kind="groups" data-nocreate="1">
+      <input type="text" class="combo-in" autocomplete="off" value="${esc(g.name)}" data-act="pickGroup"
+             title="${esc(T.group)}, чью нагрузку сейчас правим. Тот же выбор, что чипсами над сеткой">
+      <button class="combo-arrow" type="button" tabindex="-1" aria-label="Выбрать ${esc(T.group.toLowerCase())}">▼</button>
+    </span>`;
 
   if(!rows.length){
     html += `<div class="empty">Пусто. Добавь ${T.subject.toLowerCase()} — и кнопка «Собрать расписание» разложит часы по клеткам.</div>`;
@@ -1244,21 +1321,36 @@ function tplPlan(T){
     html += `
     <div class="plan-item" style="--c:${s ? s.color : "var(--accent)"}">
       <div class="pi-top">
-        <span class="swatch" data-act="color" data-id="${p.id}" style="background:${s ? s.color : "#ccc"}" title="Сменить цвет"></span>
-        <input type="text" list="dlSubjects" value="${esc(s ? s.name : "")}" placeholder="${esc(T.subject)}" data-act="subject" data-id="${p.id}">
-        <button class="x" data-act="delPlan" data-id="${p.id}" title="Убрать строку">×</button>
+        <span class="swatch" data-act="color" data-id="${p.id}" style="background:${s ? s.color : "#ccc"}"
+              title="Каким цветом ${esc(s ? "«" + s.name + "»" : "эта строка")} выглядит в сетке. Нажми, чтобы взять следующий цвет"></span>
+        <span class="combo" data-kind="subjects">
+          <input type="text" class="combo-in" autocomplete="off" value="${esc(s ? s.name : "")}" placeholder="${esc(T.subject)}" data-act="subject" data-id="${p.id}"
+                 title="Название ${esc(T.subjectGen)}. Выбери из списка или впиши новое — оно создастся само">
+          <button class="combo-arrow" type="button" tabindex="-1" aria-label="Показать список">▼</button>
+        </span>
+        <button class="x" data-act="delPlan" data-id="${p.id}"
+                title="Убрать ${esc(s ? "«" + s.name + "»" : "строку")} из нагрузки ${esc(T.groupGen)} «${esc(g.name)}» — вместе с расставленными карточками">×</button>
       </div>
       <div class="pi-bot">
-        <input type="text" list="dlTeachers" value="${esc(t ? t.name : "")}" placeholder="${esc(T.teacher)}" data-act="teacher" data-id="${p.id}">
-        <input type="text" list="dlRooms" value="${esc(r ? r.name : "")}" placeholder="${esc(T.room)}" data-act="room" data-id="${p.id}">
-        <span class="hrs"><input type="number" min="0" max="40" value="${p.hours|0}" data-act="hours" data-id="${p.id}" title="Часов в неделю"></span>
+        <span class="combo" data-kind="teachers">
+          <input type="text" class="combo-in" autocomplete="off" value="${esc(t ? t.name : "")}" placeholder="${esc(T.teacher)}" data-act="teacher" data-id="${p.id}"
+                 title="${esc(T.who)}: имя ${esc(T.personGen)}. Конструктор следит, чтобы он не стоял в двух местах одновременно">
+          <button class="combo-arrow" type="button" tabindex="-1" aria-label="Показать список">▼</button>
+        </span>
+        <span class="combo" data-kind="rooms">
+          <input type="text" class="combo-in" autocomplete="off" value="${esc(r ? r.name : "")}" placeholder="${esc(T.room)}" data-act="room" data-id="${p.id}"
+                 title="${esc(T.where)}: название ${esc(T.roomGen)}. Можно оставить пустым — тогда занятость ${esc(T.roomGen)} не проверяется">
+          <button class="combo-arrow" type="button" tabindex="-1" aria-label="Показать список">▼</button>
+        </span>
+        <span class="hrs"><input type="number" min="0" max="40" value="${p.hours|0}" data-act="hours" data-id="${p.id}"
+               title="Сколько ${esc(T.slotGen)} в неделю по этой строке: расставлено ${placed} из ${p.hours|0}"></span>
       </div>
       <div class="plan-progress"><i style="width:${pct}%"></i></div>
     </div>`;
   });
 
   html += `<button class="btn btn-sm" style="width:100%;justify-content:center;margin-top:4px" data-act="addPlan">+ Добавить ${esc(T.subject.toLowerCase())}</button>`;
-  html += `<p class="hint">Впиши любое имя ${T.teacher.toLowerCase()}а или ${T.room.toLowerCase()}а — если такого ещё нет, он создастся сам.</p>`;
+  html += `<p class="hint">Впиши любое имя ${T.personGen} или название ${T.roomGen} — если такого ещё нет в списках, он создастся сам. Число справа — сколько ${T.slotGen} в неделю по этой строке.</p>`;
 
   if(state.groups.length > 1){
     html += `<div class="sep"></div>
@@ -1268,23 +1360,39 @@ function tplPlan(T){
 }
 
 function tplRes(T){
-  const block = (key, title, list, withCap, capTitle) => {
+  const block = (key, title, list, capTitle, nameTitle) => {
     let h = `<div class="panel-h"><span>${esc(title)}</span><span class="count">${list.length}</span></div><div class="res-list">`;
     list.forEach(it => {
+      const cap = it.maxPerDay || 0;
       h += `<div class="res-item">
-        <input type="text" value="${esc(it.name)}" data-act="renameRes" data-kind="${key}" data-id="${it.id}">
-        ${withCap ? `<span class="cap"><input type="number" min="0" max="20" value="${it.maxPerDay||0}" data-act="capRes" data-kind="${key}" data-id="${it.id}" title="${esc(capTitle)}"></span>` : ""}
-        <button class="x" data-act="delRes" data-kind="${key}" data-id="${it.id}">×</button>
+        <input type="text" value="${esc(it.name)}" data-act="renameRes" data-kind="${key}" data-id="${it.id}"
+               title="${esc(nameTitle(it))}">
+        ${capTitle ? `<span class="cap"><input type="number" min="0" max="20" value="${cap || ""}" placeholder="∞"
+               data-act="capRes" data-kind="${key}" data-id="${it.id}" title="${esc(capTitle(it))}"></span>` : ""}
+        <button class="x" data-act="delRes" data-kind="${key}" data-id="${it.id}"
+                title="Удалить «${esc(it.name)}» из списка">×</button>
       </div>`;
     });
     h += `</div><button class="btn btn-sm" style="width:100%;justify-content:center" data-act="addRes" data-kind="${key}">+ Добавить</button>`;
     return h;
   };
-  return block("groups", T.groups, state.groups, true, "Максимум в день")
-       + `<p class="hint">Число справа — потолок ${T.slot.toLowerCase()}ов в день. 0 = без ограничения.</p><div class="sep"></div>`
-       + block("teachers", T.teachers, state.teachers, true, "Максимум в день")
-       + `<div class="sep"></div>`
-       + block("rooms", T.rooms, state.rooms, false, "");
+
+  const capFor = whose => it =>
+    `Сколько ${T.slotGen} максимум в день у ${whose} «${it.name}»: ` +
+    (it.maxPerDay
+      ? `сейчас не больше ${it.maxPerDay} в день`
+      : "сейчас без ограничения — автосборка ставит столько, сколько поместится");
+
+  return block("groups", T.groups, state.groups,
+               capFor(T.groupGen),
+               it => `Название ${T.groupGen} «${it.name}» — так оно подписано в расписании, в печати и в выгрузке`)
+       + `<p class="hint">Поле справа — сколько ${T.slotGen} максимум в день у ${T.groupGen}. Пусто (∞) — без ограничения.</p><div class="sep"></div>`
+       + block("teachers", T.teachers, state.teachers,
+               capFor(T.personGen),
+               it => `Имя ${T.personGen} «${it.name}» — подставляется в карточки занятий и в сводку нагрузки при печати`)
+       + `<p class="hint">Поле справа — сколько ${T.slotGen} максимум в день у ${T.personGen}. Пусто (∞) — без ограничения.</p><div class="sep"></div>`
+       + block("rooms", T.rooms, state.rooms, null,
+               it => `Название ${T.roomGen} «${it.name}» — конструктор следит, чтобы он не был занят двумя занятиями одновременно`);
 }
 
 function tplSettings(T){
@@ -1302,26 +1410,37 @@ function tplSettings(T){
     </div>
     <div class="sep"></div>
     <div class="field">
-      <label>Дней в неделе</label>
+      <label>Сколько дней в неделе</label>
       <div class="seg">
-        ${[5,6,7].map(n => `<button data-act="days" data-n="${n}" class="${st.dayCount===n?"is-on":""}">${n}</button>`).join("")}
+        ${[5,6,7].map(n => `<button data-act="days" data-n="${n}" class="${st.dayCount===n?"is-on":""}"
+             title="Расписание на ${n} ${plural(n,"день","дня","дней")}: ${DAY_SHORT.slice(0,n).join(", ")}">${n}</button>`).join("")}
       </div>
     </div>
     <div class="field">
-      <label>${esc(T.slots)}</label>
-      <input type="number" min="1" max="12" value="${st.slotCount}" data-act="set" data-key="slotCount">
+      <label>Сколько ${esc(T.slotGen)} максимум в день</label>
+      <input type="number" min="1" max="12" value="${st.slotCount}" data-act="set" data-key="slotCount"
+             title="Высота сетки: сколько строк-${esc(T.slotGen)} показывать в расписании каждого дня">
     </div>
     <div class="row">
-      <div class="field"><label>Начало</label><input type="text" class="t-in" inputmode="numeric" maxlength="5" placeholder="08:30" value="${st.startTime}" data-act="set" data-key="startTime"></div>
-      <div class="field"><label>Длительность, мин</label><input type="number" min="5" max="600" step="5" value="${st.lessonMin}" data-act="set" data-key="lessonMin"></div>
+      <div class="field"><label>Во сколько начинается день</label>
+        <input type="text" class="t-in" inputmode="numeric" maxlength="5" placeholder="08:30" value="${st.startTime}" data-act="set" data-key="startTime"
+               title="Время начала первого ${esc(T.slot.toLowerCase())}а. Остальные звонки считаются от него"></div>
+      <div class="field"><label>${esc(T.slot)} длится, мин</label>
+        <input type="number" min="5" max="600" step="5" value="${st.lessonMin}" data-act="set" data-key="lessonMin"
+               title="Сколько минут идёт один ${esc(T.slot.toLowerCase())}"></div>
     </div>
     <div class="row">
-      <div class="field"><label>Перемена, мин</label><input type="number" min="0" max="120" step="5" value="${st.breakMin}" data-act="set" data-key="breakMin"></div>
-      <div class="field"><label>Большая после</label><input type="number" min="0" max="12" value="${st.bigBreakAfter}" data-act="set" data-key="bigBreakAfter"></div>
+      <div class="field"><label>Перерыв между, мин</label>
+        <input type="number" min="0" max="120" step="5" value="${st.breakMin}" data-act="set" data-key="breakMin"
+               title="Сколько минут между соседними ${esc(T.slotGen)}"></div>
+      <div class="field"><label>Длинный перерыв после</label>
+        <input type="number" min="0" max="12" value="${st.bigBreakAfter}" data-act="set" data-key="bigBreakAfter"
+               title="После какого по счёту ${esc(T.slot.toLowerCase())}а идёт длинный перерыв — обед. 0 — длинного перерыва нет"></div>
     </div>
     <div class="field">
-      <label>Большая перемена, мин</label>
-      <input type="number" min="0" max="180" step="5" value="${st.bigBreakMin}" data-act="set" data-key="bigBreakMin"></div>
+      <label>Длинный перерыв длится, мин</label>
+      <input type="number" min="0" max="600" step="5" value="${st.bigBreakMin}" data-act="set" data-key="bigBreakMin"
+             title="Сколько минут длится тот самый длинный перерыв. Им же задаётся вечерний блок: поставь столько минут, чтобы следующее занятие попало на нужный час"></div>
     <div class="sep"></div>
     <div class="panel-h">
       <span>Звонки${g ? " · " + esc(g.name) : ""}</span>
@@ -1330,9 +1449,11 @@ function tplSettings(T){
     <div class="res-list">
       ${times.map((t,i) => own
         ? `<div class="res-item"><b style="font-size:12.5px;flex:0 0 22px;color:var(--muted)">${i+1}</b>
-             <input type="text" class="t-in" inputmode="numeric" maxlength="5" placeholder="09:00" value="${t.start}" data-act="gslot" data-i="${i}" data-key="start">
+             <input type="text" class="t-in" inputmode="numeric" maxlength="5" placeholder="09:00" value="${t.start}" data-act="gslot" data-i="${i}" data-key="start"
+                    title="Во сколько начинается ${i+1}-${esc(T.slotOrd)} у ${esc(T.groupGen)} «${esc(g.name)}»">
              <span class="t-dash">–</span>
-             <input type="text" class="t-in" inputmode="numeric" maxlength="5" placeholder="09:25" value="${t.end}" data-act="gslot" data-i="${i}" data-key="end"></div>`
+             <input type="text" class="t-in" inputmode="numeric" maxlength="5" placeholder="09:25" value="${t.end}" data-act="gslot" data-i="${i}" data-key="end"
+                    title="Во сколько заканчивается ${i+1}-${esc(T.slotOrd)} у ${esc(T.groupGen)} «${esc(g.name)}»"></div>`
         : `<div class="res-item"><b style="font-size:12.5px;flex:0 0 22px;color:var(--muted)">${i+1}</b><span style="font-weight:650">${t.start} — ${t.end}</span></div>`
       ).join("")}
     </div>
@@ -1489,12 +1610,178 @@ function renderIssues(){
     (list.length > 14 ? `<li style="opacity:.7">…и ещё ${list.length - 14}</li>` : "") + `</ul>`;
 }
 
-/* ---------- Datalists ---------- */
-function renderDatalists(){
-  $("#dlSubjects").innerHTML = state.subjects.map(x => `<option value="${esc(x.name)}">`).join("");
-  $("#dlTeachers").innerHTML = state.teachers.map(x => `<option value="${esc(x.name)}">`).join("");
-  $("#dlRooms").innerHTML    = state.rooms.map(x => `<option value="${esc(x.name)}">`).join("");
+/* ============================================================
+   ВЫПАДАЮЩИЙ СПИСОК для предметов, педагогов и кабинетов.
+   Свой, а не <datalist>: тот выглядит по-системному и на телефоне
+   открывается отдельным экраном. Меню живёт в <body> и позиционируется
+   по месту — иначе его срезала бы прокрутка панели.
+   ============================================================ */
+let combo = null;
+
+/** Сколько строк нагрузки уже ссылается на эту запись */
+function comboUsage(kind, id){
+  const key = kind === "subjects" ? "subjectId"
+            : kind === "teachers" ? "teacherId"
+            : kind === "groups"   ? "groupId" : "roomId";
+  const rows = state.plan.filter(p => p[key] === id);
+  // для людей и групп полезнее часы, для остального — число строк
+  if(kind === "teachers" || kind === "groups") return rows.reduce((a,p) => a + (p.hours|0), 0);
+  return rows.length;
 }
+function comboUsageHint(kind, n){
+  const T = terms();
+  const slots = plural(n, T.slot.toLowerCase(), T.slotFew, T.slotGen);
+  if(kind === "groups") return n ? `Нагрузка на неделю — ${n} ${slots}` : "Нагрузка ещё не заполнена";
+  if(!n) return "Пока нигде не используется";
+  if(kind === "teachers") return `Уже ведёт ${n} ${slots} в неделю`;
+  return `Уже стоит в ${n} ${plural(n,"строке","строках","строках")} нагрузки`;
+}
+
+function comboOpen(input){
+  if(combo && combo.input === input){ comboFill(); return; }
+  comboClose();
+  const wrap = input.closest(".combo"); if(!wrap) return;
+  const menu = document.createElement("div");
+  menu.className = "combo-menu";
+  document.body.appendChild(menu);
+  combo = {wrap, input, kind: wrap.dataset.kind, menu, items: [], active: -1, typed: false};
+  wrap.classList.add("is-open");
+  comboFill();
+  comboPlace();
+  const cur = menu.querySelector(".is-current");
+  if(cur) cur.scrollIntoView({block:"nearest"});
+}
+
+function comboClose(){
+  if(!combo) return;
+  combo.wrap.classList.remove("is-open");
+  combo.menu.remove();
+  combo = null;
+}
+
+function comboPlace(){
+  if(!combo) return;
+  const r = combo.input.getBoundingClientRect();
+  const m = combo.menu;
+  m.style.width = Math.max(r.width, 200) + "px";
+  m.style.left = Math.max(8, Math.min(r.left, innerWidth - m.offsetWidth - 8)) + "px";
+  const below = innerHeight - r.bottom;
+  if(below < 170 && r.top > below){          // места снизу мало — раскрываем вверх
+    m.style.top = "auto";
+    m.style.bottom = (innerHeight - r.top + 6) + "px";
+    m.style.maxHeight = Math.min(246, r.top - 14) + "px";
+  } else {
+    m.style.bottom = "auto";
+    m.style.top = (r.bottom + 6) + "px";
+    m.style.maxHeight = Math.min(246, below - 14) + "px";
+  }
+}
+
+function comboFill(){
+  if(!combo) return;
+  const typed = combo.input.value.trim();
+  const cur = typed.toLowerCase();
+  // пока не печатают — показываем весь список: значение поля это выбор, а не фильтр
+  const q = combo.typed ? cur : "";
+  const all = state[combo.kind] || [];
+  const list = q ? all.filter(x => x.name.toLowerCase().includes(q)) : all.slice();
+  const exact = all.some(x => x.name.toLowerCase() === cur);
+  const T = terms();
+  const what = combo.kind === "subjects" ? T.subjectGen : combo.kind === "teachers" ? T.personGen : T.roomGen;
+
+  let h = "";
+  list.forEach(x => {
+    const n = comboUsage(combo.kind, x.id);
+    h += `<button type="button" class="combo-opt ${x.name.toLowerCase() === cur ? "is-current" : ""}"
+            data-name="${esc(x.name)}" title="${esc(x.name)} — ${esc(comboUsageHint(combo.kind, n))}">
+        ${combo.kind === "subjects" ? `<span class="dot" style="background:${x.color || "#ccc"}"></span>` : ""}
+        <span class="nm">${esc(x.name)}</span>
+        ${n ? `<span class="use">${n}</span>` : ""}
+      </button>`;
+  });
+
+  if(!list.length){
+    h += `<div class="combo-empty">${all.length ? "Ничего не нашлось." : "Список пуст."} Впиши название — оно создастся само</div>`;
+  }
+  // в списке-переключателе (выбор группы) создавать записи нельзя
+  if(typed && !exact && !combo.wrap.dataset.nocreate){
+    h += `${list.length ? '<hr class="combo-sep">' : ""}
+      <button type="button" class="combo-opt is-new" data-name="${esc(typed)}" title="Добавить нового ${esc(what)} в справочник">
+        <span class="nm">+ Создать «${esc(typed)}»</span></button>`;
+  }
+  if(!typed && combo.kind === "rooms" && all.length){
+    h += `<hr class="combo-sep"><button type="button" class="combo-opt" data-name="" title="Не указывать помещение — тогда его занятость не проверяется">
+      <span class="nm" style="color:var(--muted)">— без ${esc(T.roomGen)} —</span></button>`;
+  }
+
+  combo.menu.innerHTML = h;
+  combo.items = [...combo.menu.querySelectorAll(".combo-opt")];
+  combo.active = -1;
+}
+
+function comboMove(step){
+  if(!combo || !combo.items.length) return;
+  const n = combo.items.length;
+  combo.active = (combo.active + step + n + (combo.active < 0 && step < 0 ? 1 : 0)) % n;
+  combo.items.forEach((el,i) => el.classList.toggle("is-active", i === combo.active));
+  const el = combo.items[combo.active];
+  if(el) el.scrollIntoView({block:"nearest"});
+}
+
+function comboPick(name){
+  if(!combo) return;
+  const input = combo.input;
+  comboClose();
+  input.value = name;
+  input.dispatchEvent(new Event("change", {bubbles:true}));
+}
+
+/* Мышь: стрелка открывает/закрывает, клик вне — закрывает.
+   mousedown внутри меню гасим, иначе поле потеряет фокус раньше клика. */
+document.addEventListener("mousedown", e => {
+  if(e.target.closest(".combo-arrow") || e.target.closest(".combo-menu")){ e.preventDefault(); return; }
+  if(combo && !e.target.closest(".combo")) comboClose();
+});
+document.addEventListener("click", e => {
+  const opt = e.target.closest(".combo-opt");
+  if(opt && combo){ comboPick(opt.dataset.name); return; }
+  const arrow = e.target.closest(".combo-arrow");
+  if(arrow){
+    const input = arrow.parentElement.querySelector(".combo-in");
+    if(combo && combo.input === input) comboClose();
+    else { input.focus(); comboOpen(input); }
+  }
+});
+$("#panelBody").addEventListener("focusin", e => {
+  const input = e.target.closest(".combo-in");
+  if(input) comboOpen(input); else comboClose();
+});
+$("#panelBody").addEventListener("scroll", comboClose);
+
+/* Панель долистали до края — дальше листается страница.
+   Одного overscroll-behavior мало: колесо «залипает» на внутреннем
+   скроллере до конца жеста, поэтому остаток прокрутки отдаём окну сами. */
+$("#panelBody").addEventListener("wheel", e => {
+  const el = e.currentTarget;
+  const step = e.deltaMode === 1 ? e.deltaY * 16          // строки
+             : e.deltaMode === 2 ? e.deltaY * el.clientHeight  // страницы
+             : e.deltaY;
+  const atTop = el.scrollTop <= 0;
+  const atEnd = Math.ceil(el.scrollTop + el.clientHeight) >= el.scrollHeight;
+  if((step < 0 && atTop) || (step > 0 && atEnd)){
+    window.scrollBy(0, step);
+    e.preventDefault();
+  }
+}, {passive:false});
+window.addEventListener("resize", comboClose);
+
+/* Клавиатура: стрелки ходят по списку, Esc закрывает */
+$("#panelBody").addEventListener("keydown", e => {
+  if(!combo || !e.target.closest(".combo-in")) return;
+  if(e.key === "ArrowDown"){ e.preventDefault(); comboMove(1); }
+  else if(e.key === "ArrowUp"){ e.preventDefault(); comboMove(-1); }
+  else if(e.key === "Escape"){ e.preventDefault(); e.stopPropagation(); comboClose(); }
+});
 
 /* ============================================================
    ПЕРЕТАСКИВАНИЕ (мышь) + ТАП-ТАП (телефон)
@@ -1748,6 +2035,8 @@ $("#panelBody").addEventListener("input", e => {
   const el = e.target.closest("[data-act]"); if(!el) return;
   const act = el.dataset.act;
 
+  if(combo && el === combo.input){ combo.typed = true; comboFill(); comboPlace(); return; }
+
   if(el.classList.contains("t-in")){
     const atEnd = el.selectionStart === el.value.length;
     const masked = maskTime(el.value);
@@ -1770,6 +2059,11 @@ $("#panelBody").addEventListener("keydown", e => {
 
   const panel = $("#panelBody");
   const idx = [...panel.querySelectorAll("input")].indexOf(el);
+  // если в списке подсвечена строка — сначала берём её, потом идём дальше
+  if(combo && combo.input === el && combo.active >= 0){
+    el.value = combo.items[combo.active].dataset.name;
+  }
+  comboClose();
   if(el.classList.contains("t-in")) el.value = padTime(el.value);
   el.dispatchEvent(new Event("change", {bubbles:true}));   // сохранит; панель может перерисоваться
 
@@ -1813,6 +2107,16 @@ function onPanelInput(e){
   const el = e.target.closest("[data-act]"); if(!el) return;
   const act = el.dataset.act;
 
+  if(act === "pickGroup"){
+    const g = state.groups.find(x => x.name.toLowerCase() === el.value.trim().toLowerCase());
+    if(!g){ el.value = (currentGroup() || {}).name || ""; return; }   // имя не совпало — возвращаем как было
+    if(ui.view === "group") ui.focus = g.id;                          // доска идёт следом
+    else ui.planGroup = g.id;
+    ui.picked = null;
+    render();
+    return;
+  }
+
   if(act === "subject" || act === "teacher" || act === "room"){
     const p = planById(el.dataset.id); if(!p) return;
     const kind = act === "subject" ? "subjects" : act === "teacher" ? "teachers" : "rooms";
@@ -1835,7 +2139,7 @@ function onPanelInput(e){
   }
   else if(act === "renameRes"){
     const it = byId(state[el.dataset.kind], el.dataset.id);
-    if(it){ it.name = el.value.trim() || it.name; save(); renderChips(); renderGrid(); renderBank(); renderDatalists(); }
+    if(it){ it.name = el.value.trim() || it.name; save(); renderChips(); renderGrid(); renderBank(); }
   }
   else if(act === "capRes"){
     const it = byId(state[el.dataset.kind], el.dataset.id);
@@ -2066,8 +2370,24 @@ fileMenu.addEventListener("click", e => {
   if(act === "csv")  download(safeName() + ".csv", "﻿" + toCSV(), "text/csv;charset=utf-8");
   if(act === "ics")  download(safeName() + ".ics", toICS(), "text/calendar;charset=utf-8");
   if(act === "import") $("#fileInput").click();
-  if(act === "reset") ask("Начать заново?", "Текущее расписание удалится, вернётся пример со школой. Сохрани проект в файл, если он нужен.",
-                          () => { state = demoState(); ui.focus = null; commit(); toast("Готов чистый пример"); });
+
+  if(act === "example"){
+    ask("Показать пример?",
+        `Сейчас в конструкторе ${describeState()}. Пример это заменит: школа, 4 класса с готовой нагрузкой.
+         <br><br>Если данные ещё нужны — нажми <b>«Сохранить проект»</b>, файл ляжет в загрузки.
+         Вернуть его потом: <b>Файл → Открыть проект…</b>`,
+        () => { state = demoState(); ui.focus = null; commit(); toast("Это пример — правь как свой"); },
+        {yes:"Показать пример", offerSave:true});
+  }
+
+  if(act === "reset"){
+    ask("Удалить все данные?",
+        `Исчезнет всё: ${describeState()}, а также ${esc(terms().teachers.toLowerCase())}, ${esc(terms().rooms.toLowerCase())} и настройки времени.
+         Конструктор станет пустым, отменить это будет нельзя.
+         <br><br>Сохрани проект в файл, если сомневаешься — вернёшь через <b>Файл → Открыть проект…</b>`,
+        () => { state = emptyState(); ui.focus = null; ui.tab = "res"; commit(); toast("Конструктор пуст — начинай с ресурсов"); },
+        {yes:"Удалить всё", offerSave:true});
+  }
 });
 
 const safeName = () => (state.title || "raspisanie").replace(/[^\wа-яёА-ЯЁ\- ]+/gi,"").trim().replace(/\s+/g,"-").slice(0,50) || "raspisanie";
@@ -2324,11 +2644,19 @@ function toast(msg){
 }
 
 let askCb = null;
-function ask(title, text, cb){
+/**
+ * opts.yes    — надпись на кнопке подтверждения
+ * opts.offerSave — показать «Сохранить проект»: скачивает файл, диалог остаётся открытым
+ */
+function ask(title, text, cb, opts){
+  opts = opts || {};
   $("#askTitle").textContent = title;
-  $("#askText").textContent = text;
+  $("#askText").innerHTML = text;
+  $("#askYes").textContent = opts.yes || "Да";
+  $("#askExtra").hidden = !opts.offerSave;
   askCb = cb;
   $("#askScrim").classList.add("is-open");
+  setTimeout(() => $("#askNo").focus(), 30);
 }
 $("#askYes").addEventListener("click", () => {
   $("#askScrim").classList.remove("is-open");
@@ -2336,6 +2664,9 @@ $("#askYes").addEventListener("click", () => {
   askCb = null;
 });
 $("#askNo").addEventListener("click", () => { $("#askScrim").classList.remove("is-open"); askCb = null; });
+$("#askExtra").addEventListener("click", () => {
+  download(safeName() + ".json", JSON.stringify(state, null, 2), "application/json");
+});
 $("#askScrim").addEventListener("click", e => { if(e.target === $("#askScrim")) $("#askNo").click(); });
 
 document.addEventListener("keydown", e => {
@@ -2352,6 +2683,7 @@ document.addEventListener("keydown", e => {
    СТАРТ
    ============================================================ */
 state = normalize(load() || demoState());
+ui.tab = state.groups.length ? "plan" : "res";   // пустой проект — начинаем с ресурсов
 render();
 if(!localStorage.getItem(STORE_KEY)){
   save();
