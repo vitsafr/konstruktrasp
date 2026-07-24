@@ -503,7 +503,12 @@ td.tcell.is-off{opacity:.4}
 .card.has-conflict{border-color:var(--warn); box-shadow:0 0 0 1.5px var(--warn), var(--sh-1)}
 .card .c-title{font-weight:700; font-size:13px; line-height:1.15; color:#22190f; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .card .c-sub{font-size:11px; color:#5d4c3c; opacity:.85; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-.card .c-time{font-size:10px; font-weight:750; letter-spacing:.02em; color:#7a5a3c; opacity:.75; line-height:1.1}
+.card .c-time{font-size:10px; font-weight:750; letter-spacing:.02em; color:#7a5a3c; opacity:.75; line-height:1.1; white-space:nowrap}
+/* «По людям»: три строки в клетке (время, занятие, группа) — даём высоту и равные колонки */
+table.grid-teacher{table-layout:fixed}
+.grid-teacher .cell{height:82px}
+.grid-teacher .card{justify-content:flex-start; gap:2px}
+.grid-teacher .card .c-sub{white-space:normal; line-height:1.2; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical}
 .card .c-flags{position:absolute; top:4px; right:5px; display:flex; gap:3px; align-items:center}
 .card .c-flags span{font-size:10px; line-height:1}
 .card .pin{opacity:0; border:none; background:rgba(255,255,255,.75); border-radius:6px; width:20px; height:20px; display:grid; place-items:center; font-size:11px; transition:opacity .2s var(--ease)}
@@ -1936,7 +1941,7 @@ function renderGrid(){
   let h = isTeacher
     ? `<p class="grid-note">Обзор занятий ${esc(byId(state.teachers, ui.focus)?.name || "")} по дням. Менять расстановку — на вкладке «По группам».</p>`
     : "";
-  h += `<table class="grid"><thead><tr><th class="corner"></th>`;
+  h += `<table class="grid ${isTeacher ? "grid-teacher" : ""}"><thead><tr><th class="corner"></th>`;
   for(let d=0; d<D; d++) h += `<th>${DAY_NAMES[d]}</th>`;
   h += `</tr></thead><tbody>`;
 
