@@ -369,6 +369,19 @@ input[type=number]{-moz-appearance:textfield}
 }
 .combo-pick .combo-in:hover{background:#fff; border-color:var(--accent)}
 .combo-pick .combo-arrow{right:7px; width:22px; height:22px; font-size:10px}
+
+/* выбор группы/человека в шапке расписания — вместо простыни чипсов */
+.combo-board{display:flex; flex:0 1 320px; min-width:150px; margin:0}
+.combo-board .combo-in{
+  padding:8px 30px 8px 12px !important;
+  font-size:14px; font-weight:700; background:var(--surface);
+  border-color:var(--line-2); cursor:pointer;
+  text-overflow:ellipsis;
+}
+.combo-board .combo-in:hover{background:#fff; border-color:var(--accent)}
+.combo-board .combo-arrow{right:7px; width:22px; height:22px; font-size:10px}
+.combo-board.has-conflict .combo-in{border-color:var(--warn); box-shadow:inset 3px 0 0 var(--warn)}
+.combo-opt .warn-dot{flex:0 0 auto; color:var(--warn); font-size:9px; line-height:1; margin-left:2px}
 .combo-empty{padding:10px 9px; font-size:12px; color:var(--muted); line-height:1.4}
 
 /* На сенсорных экранах поле только открывает список: курсор и клавиатура
@@ -1812,12 +1825,21 @@ function renderChips(){
       if(pi){ conflicted.add(pi.groupId); if(pi.teacherId) conflicted.add(pi.teacherId); }
     }
   });
+  conflictedFocus = conflicted;   // для красной точки в списке
+
   const list = ui.view === "group" ? state.groups : state.teachers;
   if(!ui.focus || !byId(list, ui.focus)) ui.focus = list[0] ? list[0].id : null;
+  const T = terms();
+  const cur = byId(list, ui.focus);
+  const kind = ui.view === "group" ? "groups" : "teachers";
 
   $("#chips").innerHTML = list.length
-    ? list.map(x => `<button class="chip ${x.id===ui.focus?"is-on":""} ${conflicted.has(x.id)?"has-conflict":""}" data-chip="${x.id}" title="${esc(x.name)}">${esc(x.name)}</button>`).join("")
-    : `<span class="hint" style="margin:0">Добавь ${esc(ui.view==="group"?terms().groups.toLowerCase():terms().teachers.toLowerCase())} на вкладке «Ресурсы»</span>`;
+    ? `<span class="combo combo-board ${cur && conflicted.has(cur.id) ? "has-conflict" : ""}" data-kind="${kind}" data-nocreate="1">
+         <input type="text" class="combo-in" autocomplete="off" readonly value="${esc(cur ? cur.name : "")}" data-act="pickFocus"
+                title="Чьё расписание показываем: выбери ${esc(ui.view === "group" ? T.group.toLowerCase() : T.person)}">
+         <button class="combo-arrow" type="button" tabindex="-1" aria-label="Выбрать">▼</button>
+       </span>`
+    : `<span class="hint" style="margin:0">Добавь ${esc(ui.view==="group"?T.groups.toLowerCase():T.teachers.toLowerCase())} на вкладке «Ресурсы»</span>`;
 
   renderStats(map);
 }
@@ -1955,6 +1977,7 @@ function renderIssues(){
    по месту — иначе его срезала бы прокрутка панели.
    ============================================================ */
 let combo = null;
+let conflictedFocus = null;   // группы/люди с накладкой — для точки в списке выбора
 
 /* Сенсорный ввод: тап по полю должен только раскрывать список.
    Иначе он одновременно ставит курсор и поднимает клавиатуру, а та
@@ -2062,10 +2085,12 @@ function comboFill(){
   let h = "";
   list.forEach(x => {
     const n = comboUsage(combo.kind, x.id);
+    const bad = (combo.kind === "groups" || combo.kind === "teachers") && conflictedFocus && conflictedFocus.has(x.id);
     h += `<button type="button" class="combo-opt ${x.name.toLowerCase() === cur ? "is-current" : ""}"
-            data-name="${esc(x.name)}" title="${esc(x.name)} — ${esc(comboUsageHint(combo.kind, n))}">
+            data-name="${esc(x.name)}" title="${esc(x.name)} — ${bad ? "есть накладка. " : ""}${esc(comboUsageHint(combo.kind, n))}">
         ${combo.kind === "subjects" ? `<span class="dot" style="background:${x.color || "#ccc"}"></span>` : ""}
         <span class="nm">${esc(x.name)}</span>
+        ${bad ? `<span class="warn-dot" title="есть накладка">●</span>` : ""}
         ${n ? `<span class="use">${n}</span>` : ""}
       </button>`;
   });
@@ -2569,12 +2594,27 @@ function clampPlacements(){
   return lost;
 }
 
-/* ---------- Чипсы и вид ---------- */
-$("#chips").addEventListener("click", e => {
-  const b = e.target.closest("[data-chip]"); if(!b) return;
-  ui.focus = b.dataset.chip; ui.picked = null;
-  render();
+/* ---------- Выбор группы/человека в шапке расписания ---------- */
+const boardHead = document.querySelector(".board-head");
+// выбор из списка → показываем расписание этой группы/человека
+boardHead.addEventListener("change", e => {
+  const el = e.target.closest("[data-act=pickFocus]"); if(!el) return;
+  const list = ui.view === "group" ? state.groups : state.teachers;
+  const item = list.find(x => x.name === el.value);
+  if(item){ ui.focus = item.id; ui.picked = null; render(); }
 });
+// комбобокс в шапке живёт вне панели — навешиваем те же открытие и клавиши
+boardHead.addEventListener("focusin", e => {
+  const input = e.target.closest(".combo-in"); if(input) comboOpen(input);
+});
+boardHead.addEventListener("keydown", e => {
+  if(!combo || !e.target.closest(".combo-in")) return;
+  if(e.key === "ArrowDown"){ e.preventDefault(); comboMove(1); }
+  else if(e.key === "ArrowUp"){ e.preventDefault(); comboMove(-1); }
+  else if(e.key === "Escape"){ e.preventDefault(); e.stopPropagation(); comboClose(); }
+  else if(e.key === "Enter"){ e.preventDefault(); if(combo.active >= 0) comboPick(combo.items[combo.active].dataset.name); }
+});
+window.addEventListener("scroll", comboClose, {passive:true});
 document.querySelectorAll("[data-view]").forEach(b => b.addEventListener("click", () => {
   document.querySelectorAll("[data-view]").forEach(x => x.classList.toggle("is-on", x === b));
   ui.view = b.dataset.view; ui.focus = null; ui.picked = null;
