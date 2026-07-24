@@ -670,10 +670,10 @@ td.tcell.is-off{opacity:.4}
   @page{size:A4 landscape; margin:11mm}
   body{background:#fff}
   body::before{display:none}
-  .topbar,.panel,.bank,.issues,.board-head,.scrim,.toast,.no-print{display:none !important}
+  /* .grid-wrap — живая сетка на экране, при печати её заменяют листы #printRoot */
+  .topbar,.panel,.bank,.issues,.board-head,.grid-wrap,.lp,.scrim,.toast,.no-print{display:none !important}
   .layout{display:block; padding:0; max-width:none}
   .board{border:none; box-shadow:none; border-radius:0}
-  .grid-wrap{padding:0; overflow:visible}
   .print-only{display:block}
   .print-page{page-break-after:always; padding-top:2mm}
   .print-page:last-child{page-break-after:auto}
@@ -693,9 +693,30 @@ td.tcell.is-off{opacity:.4}
   .card .c-sub{font-size:8pt; white-space:normal}
   .card .c-flags,.card .pin{display:none}
   .load-table{width:100%; border-collapse:collapse; font-size:9pt}
-  .load-table th,.load-table td{border:.6pt solid #b9a893; padding:4pt 6pt; text-align:left}
-  .load-table th{background:#f2e8db}
+  .load-table th,.load-table td{border:.6pt solid #b9a893; padding:5pt 7pt; text-align:left; vertical-align:top}
+  .load-table th{background:#f2e8db; font-size:8.5pt}
+  .load-table td.num{text-align:center; font-weight:700; width:64pt}
+  .load-table .who{font-weight:700}
+  .load-table .brk{font-size:8.5pt; color:#333}
+  .load-table .brk b{font-weight:700; color:#000}
+  .load-total td{border-top:1pt solid #2b211a; font-weight:700; background:#faf5ec}
 }
+
+/* ---------- Настройки печати ---------- */
+.pr-opts{display:flex; flex-direction:column; gap:2px; margin:4px 0 2px}
+.pr-row{
+  display:flex; align-items:flex-start; gap:11px;
+  padding:11px 12px; border-radius:var(--r-m);
+  transition:background .16s var(--ease);
+}
+.pr-row:hover{background:var(--surface-2)}
+.pr-row.sub{margin-left:26px; padding:8px 12px}
+.pr-row input[type=checkbox]{width:19px; height:19px; margin:1px 0 0; flex:0 0 auto; accent-color:var(--accent); cursor:pointer}
+.pr-row label{flex:1; cursor:pointer; font-size:14px}
+.pr-row label b{font-weight:650}
+.pr-row label small{display:block; color:var(--muted); font-size:12px; margin-top:2px; font-weight:400}
+.pr-row.is-off{opacity:.4; pointer-events:none}
+.pr-sep{height:1px; background:var(--line); margin:6px 4px}
 
 /* ============================================================
    АДАПТИВ
@@ -940,6 +961,19 @@ td.tcell.is-off{opacity:.4}
   </div>
 </div>
 
+<!-- ================= НАСТРОЙКИ ПЕЧАТИ ================= -->
+<div class="scrim" id="printScrim">
+  <div class="modal" style="width:min(480px,100%)" role="dialog" aria-modal="true" aria-labelledby="prTitle">
+    <h2 id="prTitle">Что печатаем</h2>
+    <p>Отметьте, какие листы включить. Настройки запомнятся.</p>
+    <div class="pr-opts" id="prOpts"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="prCancel">Отмена</button>
+      <button class="btn btn-primary" id="prGo">Печать</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 <input type="file" id="fileInput" accept="application/json,.json" hidden>
 
@@ -963,22 +997,22 @@ const AD_CONFIG = {
 const MODES = {
   school: {
     name: "Школа",
-    terms: {group:"Класс", groups:"Классы", teacher:"Учитель", teachers:"Учителя", room:"Кабинет", rooms:"Кабинеты", subject:"Предмет", subjects:"Предметы", slot:"Урок", slotFew:"урока", slotGen:"уроков", slotOrd:"й урок", slots:"Уроков в день", person:"учитель", who:"Кто ведёт", where:"Где проходит", groupGen:"класса", personGen:"учителя", roomGen:"кабинета", subjectGen:"предмета"},
+    terms: {group:"Класс", groups:"Классы", teacher:"Учитель", teachers:"Учителя", room:"Кабинет", rooms:"Кабинеты", subject:"Предмет", subjects:"Предметы", slot:"Урок", slotFew:"урока", slotGen:"уроков", slotOrd:"й урок", slots:"Уроков в день", person:"учитель", who:"Кто ведёт", where:"Где проходит", groupsDat:"классам", teachersGen:"учителей", teachersDat:"учителям", groupGen:"класса", personGen:"учителя", roomGen:"кабинета", subjectGen:"предмета"},
     settings: {dayCount:6, slotCount:7, startTime:"08:30", lessonMin:45, breakMin:10, bigBreakAfter:3, bigBreakMin:20}
   },
   uni: {
     name: "Вуз / колледж",
-    terms: {group:"Группа", groups:"Группы", teacher:"Преподаватель", teachers:"Преподаватели", room:"Аудитория", rooms:"Аудитории", subject:"Дисциплина", subjects:"Дисциплины", slot:"Пара", slotFew:"пары", slotGen:"пар", slotOrd:"я пара", slots:"Пар в день", person:"преподаватель", who:"Кто ведёт", where:"Где проходит", groupGen:"группы", personGen:"преподавателя", roomGen:"аудитории", subjectGen:"дисциплины"},
+    terms: {group:"Группа", groups:"Группы", teacher:"Преподаватель", teachers:"Преподаватели", room:"Аудитория", rooms:"Аудитории", subject:"Дисциплина", subjects:"Дисциплины", slot:"Пара", slotFew:"пары", slotGen:"пар", slotOrd:"я пара", slots:"Пар в день", person:"преподаватель", who:"Кто ведёт", where:"Где проходит", groupsDat:"группам", teachersGen:"преподавателей", teachersDat:"преподавателям", groupGen:"группы", personGen:"преподавателя", roomGen:"аудитории", subjectGen:"дисциплины"},
     settings: {dayCount:6, slotCount:5, startTime:"09:00", lessonMin:90, breakMin:10, bigBreakAfter:2, bigBreakMin:40}
   },
   kinder: {
     name: "Детский сад",
-    terms: {group:"Группа", groups:"Группы", teacher:"Педагог", teachers:"Педагоги", room:"Помещение", rooms:"Помещения", subject:"Занятие", subjects:"Виды занятий", slot:"Занятие", slotFew:"занятия", slotGen:"занятий", slotOrd:"е занятие", slots:"Занятий в день", person:"педагог", who:"Кто ведёт", where:"Где проходит", groupGen:"группы", personGen:"педагога", roomGen:"помещения", subjectGen:"вида занятия"},
+    terms: {group:"Группа", groups:"Группы", teacher:"Педагог", teachers:"Педагоги", room:"Помещение", rooms:"Помещения", subject:"Занятие", subjects:"Виды занятий", slot:"Занятие", slotFew:"занятия", slotGen:"занятий", slotOrd:"е занятие", slots:"Занятий в день", person:"педагог", who:"Кто ведёт", where:"Где проходит", groupsDat:"группам", teachersGen:"педагогов", teachersDat:"педагогам", groupGen:"группы", personGen:"педагога", roomGen:"помещения", subjectGen:"вида занятия"},
     settings: {dayCount:5, slotCount:4, startTime:"09:00", lessonMin:25, breakMin:15, bigBreakAfter:2, bigBreakMin:60}
   },
   shift: {
     name: "Смены",
-    terms: {group:"Точка", groups:"Точки", teacher:"Сотрудник", teachers:"Сотрудники", room:"Пост", rooms:"Посты", subject:"Тип смены", subjects:"Типы смен", slot:"Смена", slotFew:"смены", slotGen:"смен", slotOrd:"я смена", slots:"Смен в день", person:"сотрудник", who:"Кто работает", where:"Где работает", groupGen:"точки", personGen:"сотрудника", roomGen:"поста", subjectGen:"типа смены"},
+    terms: {group:"Точка", groups:"Точки", teacher:"Сотрудник", teachers:"Сотрудники", room:"Пост", rooms:"Посты", subject:"Тип смены", subjects:"Типы смен", slot:"Смена", slotFew:"смены", slotGen:"смен", slotOrd:"я смена", slots:"Смен в день", person:"сотрудник", who:"Кто работает", where:"Где работает", groupsDat:"точкам", teachersGen:"сотрудников", teachersDat:"сотрудникам", groupGen:"точки", personGen:"сотрудника", roomGen:"поста", subjectGen:"типа смены"},
     settings: {dayCount:7, slotCount:3, startTime:"08:00", lessonMin:480, breakMin:0, bigBreakAfter:0, bigBreakMin:0}
   }
 };
@@ -2721,37 +2755,83 @@ function loadYandexAd(){
 /* ============================================================
    ПЕЧАТЬ
    ============================================================ */
-$("#btnPrint").addEventListener("click", () => {
-  buildPrintPages();
-  setTimeout(() => window.print(), 60);
+/* ---------- Настройки печати ---------- */
+const PRINT_KEY = "konstruktr-print-cfg";
+const defaultPrintCfg = () => ({ groups:true, groupTeacher:true, groupRoom:true, teachers:false, load:true });
+let printCfg = (() => {
+  try{ return {...defaultPrintCfg(), ...JSON.parse(localStorage.getItem(PRINT_KEY) || "{}")}; }
+  catch(e){ return defaultPrintCfg(); }
+})();
+const savePrintCfg = () => { try{ localStorage.setItem(PRINT_KEY, JSON.stringify(printCfg)); }catch(e){} };
+
+function renderPrintOpts(){
+  const T = terms();
+  const hasRooms = state.rooms.length > 0;
+  const row = (key, label, hint, sub) =>
+    `<div class="pr-row ${sub ? "sub" : ""}" data-key="${key}">
+       <input type="checkbox" id="pr_${key}" ${printCfg[key] ? "checked" : ""}>
+       <label for="pr_${key}"><b>${esc(label)}</b>${hint ? `<small>${esc(hint)}</small>` : ""}</label>
+     </div>`;
+  let h = row("groups", "Расписание по " + T.groupsDat, "каждая " + T.group.toLowerCase() + " на отдельном листе");
+  h += row("groupTeacher", "Показывать " + T.personGen + " в клетках", "", true);
+  if(hasRooms) h += row("groupRoom", "Показывать " + T.room.toLowerCase() + " в клетках", "", true);
+  h += `<div class="pr-sep"></div>`;
+  h += row("teachers", "Расписание по " + T.teachersDat, "у каждого " + T.personGen + " свой лист со всеми занятиями");
+  h += `<div class="pr-sep"></div>`;
+  h += row("load", "Сводная нагрузка " + T.teachersGen, "часов в неделю и по каким " + T.groupsDat);
+  $("#prOpts").innerHTML = h;
+  updatePrintOptsState();
+}
+function updatePrintOptsState(){
+  // под-опции живут только при включённом «по группам»
+  $("#prOpts").querySelectorAll(".pr-row.sub").forEach(r => r.classList.toggle("is-off", !printCfg.groups));
+  const any = printCfg.groups || printCfg.teachers || printCfg.load;
+  $("#prGo").disabled = !any;
+}
+$("#prOpts").addEventListener("change", e => {
+  const cb = e.target.closest("input[type=checkbox]"); if(!cb) return;
+  const key = cb.closest(".pr-row").dataset.key;
+  printCfg[key] = cb.checked;
+  savePrintCfg();
+  updatePrintOptsState();
 });
+
+$("#btnPrint").addEventListener("click", () => {
+  renderPrintOpts();
+  $("#printScrim").classList.add("is-open");
+  setTimeout(() => $("#prGo").focus(), 30);
+});
+$("#prCancel").addEventListener("click", () => $("#printScrim").classList.remove("is-open"));
+$("#printScrim").addEventListener("click", e => { if(e.target === $("#printScrim")) $("#prCancel").click(); });
+$("#prGo").addEventListener("click", () => {
+  $("#printScrim").classList.remove("is-open");
+  buildPrintPages(printCfg);
+  setTimeout(() => window.print(), 80);
+});
+
 window.addEventListener("afterprint", () => {
   const old = document.getElementById("printRoot");
   if(old) old.remove();
 });
 
-function buildPrintPages(){
+function buildPrintPages(cfg){
+  cfg = cfg || defaultPrintCfg();
   const old = document.getElementById("printRoot");
   if(old) old.remove();
   const D = dayCount(), S = slotCount();
+  const T = terms();
   const today = new Date().toLocaleDateString("ru-RU");
-  const root = document.createElement("div");
-  root.id = "printRoot";
-  root.className = "print-only";
-
+  const head = title => `<div class="print-head"><h2>${esc(title)}</h2><span>Составлено ${today}</span></div>`;
   let html = "";
-  state.groups.forEach(g => {
-    const mine = state.placements.filter(p => {
-      const pi = planById(p.planId);
-      return pi && pi.groupId === g.id;
-    });
+
+  // ---------- расписание по группам ----------
+  if(cfg.groups) state.groups.forEach(g => {
+    const mine = state.placements.filter(p => { const pi = planById(p.planId); return pi && pi.groupId === g.id; });
     if(!mine.length) return;
     const times = slotTimes(g);
-    // если у карточек своё время, колонка слева бесполезна — время печатаем в самой клетке
     const ownTimes = mine.some(p => p.time && p.time.start);
-    html += `<div class="print-page">
-      <div class="print-head"><h2>${esc(state.title)} — ${esc(g.name)}</h2><span>Составлено ${today}</span></div>
-      <table class="grid"><thead><tr><th class="corner">${esc(terms().slot)}</th>`;
+    html += `<div class="print-page">${head(state.title + " — " + g.name)}
+      <table class="grid"><thead><tr><th class="corner">${esc(T.slot)}</th>`;
     for(let d=0; d<D; d++) html += `<th>${DAY_NAMES[d]}</th>`;
     html += `</tr></thead><tbody>`;
     for(let s=0; s<S; s++){
@@ -2761,8 +2841,37 @@ function buildPrintPages(){
         const p = mine.find(x => x.day === d && x.slot === s);
         const pi = p ? planById(p.planId) : null;
         const tm = p ? timeOf(p) : null;
+        const timeTag = (ownTimes && tm) ? `<span class="c-time">${esc(tm.start)}–${esc(tm.end)}</span>` : "";
+        html += `<td><div class="cell">` + (pi ? `<div class="card">${timeTag}<span class="c-title">${esc(subjOf(pi)?.name||"")}</span>${cellSub(pi,cfg)}</div>` : ``) + `</div></td>`;
+      }
+      html += `</tr>`;
+    }
+    html += `</tbody></table></div>`;
+  });
+
+  // ---------- расписание по педагогам ----------
+  // строки — по порядку занятий в дне, время печатаем в клетке: у педагога,
+  // ведущего много групп, времена чуть разные, и сетка «по времени» была бы почти пустой
+  if(cfg.teachers) state.teachers.forEach(t => {
+    const mine = state.placements.filter(p => { const pi = planById(p.planId); return pi && pi.teacherId === t.id; });
+    if(!mine.length) return;
+    const byDay = {}; let maxRow = 0;
+    for(let d=0; d<D; d++){
+      byDay[d] = mine.filter(p => p.day === d).sort((a,b) => (toMin(timeOf(a)?.start)||0) - (toMin(timeOf(b)?.start)||0));
+      if(byDay[d].length > maxRow) maxRow = byDay[d].length;
+    }
+    html += `<div class="print-page">${head(state.title + " — " + t.name)}
+      <table class="grid"><thead><tr><th class="corner">${esc(T.slot)}</th>`;
+    for(let d=0; d<D; d++) html += `<th>${DAY_NAMES[d]}</th>`;
+    html += `</tr></thead><tbody>`;
+    for(let r=0; r<maxRow; r++){
+      html += `<tr><td class="tcell"><b>${r+1}</b></td>`;
+      for(let d=0; d<D; d++){
+        const p = byDay[d][r];
+        const pi = p ? planById(p.planId) : null;
+        const tm = p ? timeOf(p) : null;
         html += `<td><div class="cell">` + (pi
-          ? `<div class="card">${ownTimes && tm ? `<span class="c-time">${esc(tm.start)}–${esc(tm.end)}</span>` : ""}<span class="c-title">${esc(subjOf(pi)?.name || "")}</span><span class="c-sub">${esc([teacherOf(pi)?.name, roomOf(pi)?.name].filter(Boolean).join(" · "))}</span></div>`
+          ? `<div class="card">${tm ? `<span class="c-time">${esc(tm.start)}–${esc(tm.end)}</span>` : ""}<span class="c-title">${esc(subjOf(pi)?.name||"")}</span><span class="c-sub">${esc([groupOf(pi)?.name, cfg.groupRoom ? roomOf(pi)?.name : null].filter(Boolean).join(" · "))}</span></div>`
           : ``) + `</div></td>`;
       }
       html += `</tr>`;
@@ -2770,18 +2879,50 @@ function buildPrintPages(){
     html += `</tbody></table></div>`;
   });
 
-  // сводка по людям
-  html += `<div class="print-page"><div class="print-head"><h2>${esc(state.title)} — нагрузка</h2><span>${today}</span></div>
-    <table class="load-table"><thead><tr><th>${esc(terms().teacher)}</th><th>Часов в неделю</th><th>${esc(terms().groups)}</th></tr></thead><tbody>`;
-  state.teachers.forEach(t => {
-    const mine = state.placements.filter(p => { const pi = planById(p.planId); return pi && pi.teacherId === t.id; });
-    const gs = [...new Set(mine.map(p => groupOf(planById(p.planId))?.name).filter(Boolean))];
-    html += `<tr><td>${esc(t.name)}</td><td>${mine.length}</td><td>${esc(gs.join(", "))}</td></tr>`;
-  });
-  html += `</tbody></table></div>`;
+  // ---------- сводная нагрузка ----------
+  if(cfg.load){
+    const rows = state.teachers.map(t => {
+      const mine = state.placements.filter(p => { const pi = planById(p.planId); return pi && pi.teacherId === t.id; });
+      const byGroup = {};
+      mine.forEach(p => { const gn = shortName(groupOf(planById(p.planId))?.name); byGroup[gn] = (byGroup[gn]||0) + 1; });
+      return {name: t.name, total: mine.length,
+              breakdown: Object.entries(byGroup).sort((a,b) => a[0].localeCompare(b[0],"ru"))};
+    }).filter(r => r.total > 0).sort((a,b) => b.total - a.total);
+    const grand = rows.reduce((a,r) => a + r.total, 0);
 
-  root.innerHTML = html;
+    html += `<div class="print-page">${head(state.title + " — нагрузка " + T.teachersGen)}
+      <table class="load-table"><thead><tr>
+        <th>${esc(T.teacher)}</th><th class="num">${T.slotGen[0].toUpperCase()+T.slotGen.slice(1)} в неделю</th><th>По ${esc(T.groupsDat)}</th>
+      </tr></thead><tbody>`;
+    rows.forEach(r => {
+      const brk = r.breakdown.map(([gn,n]) => `<span class="brk">${esc(gn)} — <b>${n}</b></span>`).join("<br>");
+      html += `<tr><td class="who">${esc(r.name)}</td><td class="num">${r.total}</td><td>${brk}</td></tr>`;
+    });
+    html += `<tr class="load-total"><td>Итого</td><td class="num">${grand}</td><td></td></tr>`;
+    html += `</tbody></table></div>`;
+  }
+
+  const root = document.createElement("div");
+  root.id = "printRoot";
+  root.className = "print-only";
+  root.innerHTML = html || `<div class="print-page">${head(state.title)}<p style="padding:20pt;font-size:11pt">Нечего печатать — отметьте хотя бы один раздел.</p></div>`;
   document.body.appendChild(root);
+}
+
+/** Короткое имя группы для тесных мест: без возрастного хвоста и «…направленности» */
+function shortName(name){
+  return String(name || "—")
+    .split(" · ")[0]                                  // убираем возраст «· с 5 до 6 лет»
+    .replace(/\s+\S+\s+направленности$/i, "")         // и «…комбинированной направленности»
+    .trim();
+}
+
+/** Подпись в клетке группы: педагог и/или кабинет по настройкам печати */
+function cellSub(pi, cfg){
+  const parts = [];
+  if(cfg.groupTeacher && teacherOf(pi)) parts.push(teacherOf(pi).name);
+  if(cfg.groupRoom && roomOf(pi)) parts.push(roomOf(pi).name);
+  return parts.length ? `<span class="c-sub">${esc(parts.join(" · "))}</span>` : "";
 }
 
 /* ============================================================
@@ -3148,7 +3289,8 @@ $("#askScrim").addEventListener("click", e => { if(e.target === $("#askScrim")) 
 
 document.addEventListener("keydown", e => {
   if(e.key === "Escape"){
-    if($("#askScrim").classList.contains("is-open")) $("#askNo").click();
+    if($("#printScrim").classList.contains("is-open")) $("#prCancel").click();
+    else if($("#askScrim").classList.contains("is-open")) $("#askNo").click();
     else if(ui.picked){ ui.picked = null; render(); }
     fileMenu.classList.remove("is-open");
   }
