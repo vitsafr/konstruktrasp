@@ -494,6 +494,10 @@ td.tcell.is-off{opacity:.4}
 }
 .card:hover{transform:translateY(-2px) scale(1.015); box-shadow:var(--sh-2); z-index:3}
 .card:active{cursor:grabbing}
+.card.card-view{cursor:default}
+.card.card-view:hover{transform:none; box-shadow:var(--sh-1); z-index:auto}
+.card.card-view .c-time{color:var(--ink-2); font-weight:700; font-size:11px}
+.grid-note{margin:0 0 10px; font-size:12.5px; color:var(--muted)}
 .card.is-picked{transform:translateY(-2px) scale(1.03); box-shadow:0 0 0 2px var(--accent), var(--sh-2); z-index:5}
 .card.is-dragging{opacity:.35}
 .card.has-conflict{border-color:var(--warn); box-shadow:0 0 0 1.5px var(--warn), var(--sh-1)}
@@ -1892,8 +1896,6 @@ function renderStats(cmap){
 /* ---------- Сетка ---------- */
 function renderGrid(){
   const D = dayCount(), S = slotCount();
-  // в виде «по людям» группы разные, общей колонки времени нет — показываем только номер
-  const times = ui.view === "group" ? slotTimes(byId(state.groups, ui.focus)) : [];
   const {map} = computeConflicts();
 
   if(!ui.focus){
@@ -1901,57 +1903,86 @@ function renderGrid(){
     return;
   }
 
+  const isTeacher = ui.view === "teacher";
+  const focusGroup = isTeacher ? null : byId(state.groups, ui.focus);
   const relevant = p => {
     const pi = planById(p.planId); if(!pi) return false;
-    return ui.view === "group" ? pi.groupId === ui.focus : pi.teacherId === ui.focus;
+    return isTeacher ? pi.teacherId === ui.focus : pi.groupId === ui.focus;
   };
-  const at = {};
-  state.placements.filter(relevant).forEach(p => { (at[p.day + "|" + p.slot] ||= []).push(p); });
+  const mine = state.placements.filter(relevant);
 
-  let h = `<table class="grid"><thead><tr><th class="corner"></th>`;
+  let rows, cellAt, times = [];
+  if(isTeacher){
+    // у педагога один слот-индекс делят разные группы — раскладываем по порядку
+    // занятий в дне (по времени), иначе карточки наезжают друг на друга
+    const byDay = {}; rows = 1;
+    for(let d=0; d<D; d++){
+      byDay[d] = mine.filter(p => p.day === d)
+                     .sort((a,b) => (toMin(timeOf(a)?.start) || 0) - (toMin(timeOf(b)?.start) || 0));
+      rows = Math.max(rows, byDay[d].length);
+    }
+    cellAt = (d, r) => byDay[d][r] ? [byDay[d][r]] : [];
+  }else{
+    const at = {};
+    mine.forEach(p => { (at[p.day + "|" + p.slot] ||= []).push(p); });
+    times = slotTimes(focusGroup);
+    // рисуем только реальные слоты группы, а не общий максимум по саду
+    rows = (focusGroup && focusGroup.slots && focusGroup.slots.length) ? focusGroup.slots.length : S;
+    Object.keys(at).forEach(k => { const s = +k.split("|")[1]; if(s + 1 > rows) rows = s + 1; });
+    rows = Math.min(rows, S);
+    cellAt = (d, s) => at[d + "|" + s] || [];
+  }
+
+  let h = isTeacher
+    ? `<p class="grid-note">Обзор занятий ${esc(byId(state.teachers, ui.focus)?.name || "")} по дням. Менять расстановку — на вкладке «По группам».</p>`
+    : "";
+  h += `<table class="grid"><thead><tr><th class="corner"></th>`;
   for(let d=0; d<D; d++) h += `<th>${DAY_NAMES[d]}</th>`;
   h += `</tr></thead><tbody>`;
 
-  const focusGroup = ui.view === "group" ? byId(state.groups, ui.focus) : null;
-  // в виде группы рисуем только её реальные слоты, а не общий максимум по саду —
-  // иначе внизу висят чужие «фейковые» строки, куда ещё и можно уронить карточку
-  let rows = (focusGroup && focusGroup.slots && focusGroup.slots.length) ? focusGroup.slots.length : S;
-  Object.keys(at).forEach(k => { const s = +k.split("|")[1]; if(s + 1 > rows) rows = s + 1; });  // но не прячем занятое
-  rows = Math.min(rows, S);
-
-  for(let s=0; s<rows; s++){
-    const off = focusGroup && !slotAvailable(focusGroup, s);   // у группы нет такого занятия
-    h += `<tr><td class="tcell ${off?"is-off":""}"><b>${s+1}</b>${times[s] ? times[s].start + "–" + times[s].end : ""}</td>`;
+  for(let r=0; r<rows; r++){
+    const off = focusGroup && !slotAvailable(focusGroup, r);
+    h += `<tr><td class="tcell ${off?"is-off":""}"><b>${r+1}</b>${times[r] ? times[r].start + "–" + times[r].end : ""}</td>`;
     for(let d=0; d<D; d++){
-      const here = at[d + "|" + s] || [];
-      h += `<td><div class="cell ${off && !here.length ? "is-off" : ""}" data-d="${d}" data-s="${s}">${here.map(p => cardHTML(p, map)).join("")}</div></td>`;
+      const here = cellAt(d, r);
+      // в виде «по людям» клетки не редактируем перетаскиванием — только смотрим
+      const drop = isTeacher ? "" : `data-d="${d}" data-s="${r}"`;
+      h += `<td><div class="cell ${off && !here.length ? "is-off" : ""}" ${drop}>${here.map(p => cardHTML(p, map, isTeacher)).join("")}</div></td>`;
     }
     h += `</tr>`;
   }
   h += `</tbody></table>`;
   $("#gridWrap").innerHTML = h;
-  bindGrid();
+  if(!isTeacher) bindGrid();
 }
 
-function cardHTML(p, cmap){
+function cardHTML(p, cmap, readonly){
   const pi = planById(p.planId); if(!pi) return "";
   const s = subjOf(pi), t = teacherOf(pi), r = roomOf(pi), g = groupOf(pi);
   const why = cmap.get(p.id) || [];
   const color = s ? s.color : "#b09b86";
-  const sub = ui.view === "group"
-    ? [t && t.name, r && r.name].filter(Boolean).join(" · ")
-    : [g && g.name, r && r.name].filter(Boolean).join(" · ");
+  const sub = readonly
+    ? [g && shortName(g.name), r && r.name].filter(Boolean).join(" · ")   // по людям: короткое имя группы
+    : [t && t.name, r && r.name].filter(Boolean).join(" · ");
   const flags = [];
   if(why.includes("teacher")) flags.push(`<span title="${esc(t?t.name:"")} занят в это же время">👤</span>`);
   if(why.includes("room"))    flags.push(`<span title="${esc(r?r.name:"")} занят в это же время">🚪</span>`);
   if(why.includes("group"))   flags.push(`<span title="Две карточки в одной клетке">⚠</span>`);
+  // по людям колонки времени слева нет — печатаем время в клетке; в группе оно уже в колонке
+  const tm = readonly ? timeOf(p) : (p.time && p.time.start ? p.time : null);
+  const timeTag = tm && tm.start ? `<span class="c-time">${esc(tm.start)}–${esc(tm.end)}</span>` : "";
 
-  return `<div class="card ${why.length?"has-conflict":""} ${ui.picked==="placement:"+p.id?"is-picked":""}"
-    draggable="true" data-pid="${p.id}" tabindex="0"
+  // в виде «по людям» карточка — только для просмотра: не таскается, без кнопки-булавки
+  const corner = readonly
+    ? (p.locked ? `<div class="c-flags">${flags.join("")}<span title="закреплено">📌</span></div>` : (flags.length ? `<div class="c-flags">${flags.join("")}</div>` : ""))
+    : `<div class="c-flags">${flags.join("")}<button class="pin ${p.locked?"is-on":""}" data-act="pin" data-pid="${p.id}" title="${p.locked?"Открепить":"Закрепить — автосборка не тронет"}">${p.locked?"📌":"📍"}</button></div>`;
+
+  return `<div class="card ${why.length?"has-conflict":""} ${readonly?"card-view":""} ${ui.picked==="placement:"+p.id?"is-picked":""}"
+    ${readonly ? "" : `draggable="true"`} data-pid="${p.id}" tabindex="0"
     style="--cbg:${hexA(color,.17)};--cbd:${hexA(color,.5)}"
     title="${esc((s?s.name:"") + (sub?" · "+sub:""))}">
-    <div class="c-flags">${flags.join("")}<button class="pin ${p.locked?"is-on":""}" data-act="pin" data-pid="${p.id}" title="${p.locked?"Открепить":"Закрепить — автосборка не тронет"}">${p.locked?"📌":"📍"}</button></div>
-    ${p.time && p.time.start ? `<span class="c-time">${esc(p.time.start)}–${esc(p.time.end)}</span>` : ""}
+    ${corner}
+    ${timeTag}
     <span class="c-title">${esc(s ? s.name : "—")}</span>
     <span class="c-sub">${esc(sub)}</span>
   </div>`;
