@@ -1,0 +1,17 @@
+{
+  "name": "Составь.рф — конструктор расписаний",
+  "short_name": "Составь.рф",
+  "description": "Конструктор расписания занятий для школы, детского сада и вуза. Автосборка без накладок, печать и экспорт.",
+  "lang": "ru",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#fbf6ef",
+  "theme_color": "#d2703f",
+  "icons": [
+    { "src": "/favicon.svg", "type": "image/svg+xml", "sizes": "any" },
+    { "src": "/icon-192.png", "type": "image/png", "sizes": "192x192" },
+    { "src": "/icon-512.png", "type": "image/png", "sizes": "512x512" }
+  ]
+}
