@@ -236,6 +236,9 @@ button{cursor:pointer}
 .btn-primary:hover{background:linear-gradient(150deg,#e8955a,#cf6539)}
 .btn-ghost{background:transparent;border-color:transparent;box-shadow:none;color:var(--ink-2)}
 .btn-ghost:hover{background:var(--surface-2);box-shadow:none}
+.undo-pair{display:flex; gap:4px; flex:0 0 auto}
+.undo-pair .btn{padding:8px}
+.undo-pair .btn svg{width:16px; height:16px}
 .btn:disabled{opacity:.45; cursor:default; box-shadow:none; transform:none; filter:saturate(.6)}
 .btn:disabled:hover{transform:none; box-shadow:none}
 .btn-sm{padding:5px 10px;font-size:12px}
@@ -324,28 +327,95 @@ input[type=number]{-moz-appearance:textfield}
 
 /* ---------- Смены педагога по дням ---------- */
 .shift-row{
-  display:flex; align-items:center; gap:4px; flex-wrap:wrap;
-  padding:0 4px 8px 10px; margin:-4px 0 4px;
+  display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+  padding:0 6px 8px 10px; margin:-4px 0 4px;
 }
-.shift-lbl{font-size:11px; color:var(--muted); margin-right:2px; cursor:help}
+.shift-lbl{font-size:11px; color:var(--muted); cursor:help}
+/* дни занимают отдельную строку и делят её поровну — при любом числе дней
+   строка выглядит одинаково, а кнопка «Настроить» не съезжает */
+.shift-days{
+  flex:1 1 100%; display:grid; gap:4px;
+  grid-template-columns:repeat(var(--n, 5), minmax(0, 1fr));
+}
 .shift-day{
-  display:inline-flex; align-items:center; gap:3px; line-height:1;
+  display:flex; align-items:center; justify-content:center; line-height:1;
   border:1px solid var(--line-2); background:var(--surface);
-  border-radius:8px; padding:4px 6px;
+  border-radius:8px; padding:5px 2px;
   font-size:11px; font-weight:650; color:var(--ink-2);
-  transition:transform .2s var(--ease), background .18s var(--ease), border-color .18s var(--ease);
+  transition:background .18s var(--ease), border-color .18s var(--ease);
 }
-.shift-day:hover{transform:translateY(-1px)}
-.shift-day i{font-style:normal; font-size:10px; font-weight:800}
-.shift-day.is-a{color:var(--muted)}
-.shift-day.is-a i{opacity:.4}
-.shift-day.is-1{background:#e9f1f8; border-color:#b6cee5; color:#35678f}
-.shift-day.is-2{background:#fdf0e0; border-color:#e7c295; color:#9c5f1c}
-.shift-day.is-x{background:var(--bg-2); color:var(--muted); opacity:.7}
-.shift-day.is-x span, .shift-day.is-x{text-decoration:none}
+.shift-day.is-a{color:var(--ink-2)}
+.shift-day.is-p{background:#fdf0e0; border-color:#e7c295; color:#9c5f1c}
+.shift-day.is-x{background:var(--bg-2); color:var(--muted); opacity:.65}
+.shift-more{
+  margin-left:auto;                     /* всегда прижата к правому краю строки */
+  border:1px dashed var(--line-2); background:transparent; border-radius:8px;
+  padding:4px 9px; font-size:11px; font-weight:650; color:var(--accent);
+  transition:background .18s var(--ease), border-color .18s var(--ease);
+}
+.shift-more:hover{background:var(--accent-in); border-color:var(--accent); border-style:solid}
+/* открытый график — «Готово» зелёная: оранжевая тонула среди акцентов вокруг */
+.shift-more.is-done{
+  color:#41703a; background:#eaf3e7; border-color:#a9c9a4; border-style:solid;
+  box-shadow:0 1px 2px rgba(90,130,80,.12);
+}
+.shift-more.is-done:hover{background:#dfeeda; border-color:#7fae78; color:#35602f}
+
+/* ---------- Тонкая настройка строки нагрузки ---------- */
+.pi-more{
+  display:block; width:100%; margin-top:7px; padding:4px 6px;
+  border:1px dashed var(--line-2); background:transparent; border-radius:8px;
+  font-size:11px; font-weight:650; color:var(--muted); text-align:left;
+  transition:background .18s var(--ease), color .18s var(--ease), border-color .18s var(--ease);
+}
+.pi-more:hover{background:var(--surface); color:var(--ink-2); border-color:var(--line-2)}
+.pi-more.has-rules{color:var(--accent); border-style:solid; border-color:rgba(210,112,63,.35); background:var(--accent-in)}
+.pi-extra{
+  margin-top:7px; padding:10px; border-radius:var(--r-m);
+  background:var(--surface); border:1px solid var(--line);
+}
+.px-row{display:flex; align-items:center; gap:8px; margin-bottom:8px}
+.px-lbl{flex:1; font-size:12px; color:var(--ink-2); cursor:help}
+.px-seg{flex:0 0 auto; padding:3px}
+.px-seg button{padding:4px 9px; font-size:11.5px}
+.px-check{
+  display:flex; align-items:center; gap:8px; padding:5px 2px;
+  font-size:12.5px; color:var(--ink-2); cursor:pointer;
+}
+.px-check input{width:17px; height:17px; accent-color:var(--accent); cursor:pointer; flex:0 0 auto}
+.px-sep{height:1px; background:var(--line); margin:9px 0}
+.px-note{margin:8px 0 0; font-size:11px; color:var(--muted); line-height:1.4}
+
+/* ---------- Раскрывающиеся секции панели ---------- */
+/* анимируем строку грида 0fr → 1fr: высота едет плавно и её не нужно знать
+   заранее, в отличие от max-height с запасом */
+.exp{
+  display:grid; grid-template-rows:0fr;
+  opacity:.3;
+  transition:grid-template-rows .3s var(--ease), opacity .25s var(--ease);
+}
+.exp.is-open{grid-template-rows:1fr; opacity:1}
+/* обрезаем на отдельной прослойке: если повесить overflow прямо на блок
+   с рамкой и отступами, свёрнутая высота упрётся в них и не дойдёт до нуля */
+.exp-clip{overflow:hidden; min-height:0}
+
+/* ---------- График педагога по дням ---------- */
+.work-days{
+  margin:2px 0 8px; padding:9px 10px; border-radius:var(--r-m);
+  background:var(--surface); border:1px solid var(--line);
+}
+.wd-row{display:flex; align-items:center; gap:6px; padding:4px 0}
+.wd-row + .wd-row{border-top:1px solid var(--line)}
+.wd-row.is-off .t-in{opacity:.4; pointer-events:none}
+.wd-on{display:flex; align-items:center; gap:6px; flex:0 0 58px; cursor:pointer}
+.wd-on input{width:17px; height:17px; accent-color:var(--accent); cursor:pointer; flex:0 0 auto}
+.wd-on b{font-size:12.5px; font-weight:700; color:var(--ink-2)}
+.wd-t{font-size:11.5px; color:var(--muted); flex:0 0 auto}
+.wd-row .t-in{flex:1 1 60px; min-width:0}
 /* пальцем — цель побольше (класс ставится при первом касании) */
-body.is-touch .shift-day{padding:8px 10px; font-size:12.5px; border-radius:9px}
-body.is-touch .shift-row{gap:5px; padding-bottom:10px}
+body.is-touch .shift-day{padding:9px 2px; font-size:12.5px; border-radius:9px}
+body.is-touch .shift-more{padding:7px 12px; font-size:12px}
+body.is-touch .shift-row{gap:7px; padding-bottom:10px}
 
 /* ---------- Выпадающий список: предметы, педагоги, кабинеты ---------- */
 .combo{position:relative; flex:1 1 auto; min-width:0; display:flex}
@@ -529,6 +599,10 @@ td.tcell.is-off{opacity:.4}
 .card.is-picked{transform:translateY(-2px) scale(1.03); box-shadow:0 0 0 2px var(--accent), var(--sh-2); z-index:5}
 .card.is-dragging{opacity:.35}
 .card.has-conflict{border-color:var(--warn); box-shadow:0 0 0 1.5px var(--warn), var(--sh-1)}
+/* флажки висят в правом верхнем углу — место уступает только верхняя строка:
+   есть время — оно, нет времени — название */
+.card .c-time{padding-right:calc(var(--ic, 0) * 16px)}
+.card:not(.has-time) .c-title{padding-right:calc(var(--ic, 0) * 16px)}
 .card .c-title{font-weight:700; font-size:13px; line-height:1.15; color:#22190f; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .card .c-sub{font-size:11px; color:#5d4c3c; opacity:.85; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .card .c-time{font-size:10px; font-weight:750; letter-spacing:.02em; color:#7a5a3c; opacity:.75; line-height:1.1; white-space:nowrap}
@@ -538,8 +612,19 @@ table.grid-teacher{table-layout:fixed}
 .grid-teacher .card{justify-content:flex-start; gap:2px}
 .grid-teacher .card .c-sub{white-space:normal; line-height:1.2; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical}
 .card .c-flags{position:absolute; top:4px; right:5px; display:flex; gap:3px; align-items:center}
+/* иконки-флажки на карточке: один размер и цвет на всех системах */
+.c-ic{display:inline-flex; align-items:center; justify-content:center; flex:0 0 auto; color:var(--warn)}
+.c-ic svg{width:13px; height:13px; display:block}
+.c-ic.is-pin{color:var(--pin)}
+.c-ic.is-ok{color:var(--ok)}
+.bank-empty .c-ic svg{width:15px; height:15px}
+.combo-opt .c-ic svg{width:13px; height:13px}
+.combo-opt.is-manual .c-ic{color:var(--accent)}
 .card .c-flags span{font-size:10px; line-height:1}
-.card .pin{opacity:0; border:none; background:rgba(255,255,255,.75); border-radius:6px; width:20px; height:20px; display:grid; place-items:center; font-size:11px; transition:opacity .2s var(--ease)}
+/* padding:0 обязателен — браузер даёт кнопке свои 1px 6px, и при box-sizing
+   контентная область сжимается до 8px, а иконка 13px уезжает вправо */
+.card .pin{opacity:0; border:none; padding:0; background:rgba(255,255,255,.75); border-radius:6px; width:20px; height:20px; display:grid; place-items:center; color:var(--muted); transition:opacity .2s var(--ease), color .2s var(--ease)}
+.card .pin svg{width:13px; height:13px; display:block}
 .card:hover .pin, .card .pin.is-on{opacity:1}
 .card .pin.is-on{background:#fff2d4; color:var(--pin)}
 
@@ -553,7 +638,9 @@ table.grid-teacher{table-layout:fixed}
 .bank-list{display:flex; gap:7px; flex-wrap:wrap; min-height:44px; align-items:flex-start}
 .bank-list.is-hot{outline:2px dashed var(--accent); outline-offset:5px; border-radius:var(--r-m)}
 .bank .card{position:static; height:44px; width:172px; flex:0 0 auto}
-.bank-empty{font-size:12.5px; color:var(--muted); padding:11px 0}
+/* flex вместо строки текста: иначе inline-иконка садится на базовую линию
+   и оказывается на пару пикселей выше центра подписи */
+.bank-empty{display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--muted); padding:11px 0}
 
 /* конфликты */
 .issues{border-top:1px solid var(--line); padding:12px 16px 16px; background:var(--warn-bg)}
@@ -795,6 +882,10 @@ table.grid-teacher{table-layout:fixed}
   <input class="title-input" id="orgTitle" type="text" placeholder="Название учреждения" aria-label="Название учреждения">
 
   <div class="tools">
+    <div class="undo-pair">
+      <button class="btn btn-icon" id="btnUndo" disabled title="Отменить последнее действие (Ctrl+Z)" aria-label="Отменить"></button>
+      <button class="btn btn-icon" id="btnRedo" disabled title="Вернуть отменённое (Ctrl+Shift+Z)" aria-label="Вернуть"></button>
+    </div>
     <button class="btn btn-primary" id="btnBuild" title="Разложить всю нагрузку по клеткам заново: без накладок у педагогов и кабинетов, без окон. Закреплённые карточки останутся на местах">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4.5 13H11l-1 9 8.5-11H12z"/></svg>
       <span class="lbl">Собрать расписание</span>
@@ -1034,22 +1125,22 @@ const AD_CONFIG = {
 const MODES = {
   school: {
     name: "Школа",
-    terms: {group:"Класс", groups:"Классы", teacher:"Учитель", teachers:"Учителя", room:"Кабинет", rooms:"Кабинеты", subject:"Предмет", subjects:"Предметы", slot:"Урок", slotFew:"урока", slotGen:"уроков", slotOrd:"й урок", slots:"Уроков в день", person:"учитель", who:"Кто ведёт", where:"Где проходит", groupsDat:"классам", teachersGen:"учителей", teachersDat:"учителям", groupGen:"класса", personGen:"учителя", roomGen:"кабинета", subjectGen:"предмета"},
+    terms: {group:"Класс", groups:"Классы", teacher:"Учитель", teachers:"Учителя", room:"Кабинет", rooms:"Кабинеты", subject:"Предмет", subjects:"Предметы", slot:"Урок", slotPl:"уроки", slotFew:"урока", slotGen:"уроков", slotOrd:"й урок", slots:"Уроков в день", person:"учитель", who:"Кто ведёт", where:"Где проходит", groupsDat:"классам", teachersGen:"учителей", teachersDat:"учителям", groupGen:"класса", personGen:"учителя", roomGen:"кабинета", subjectGen:"предмета"},
     settings: {dayCount:6, slotCount:7, startTime:"08:30", lessonMin:45, breakMin:10, bigBreakAfter:3, bigBreakMin:20}
   },
   uni: {
     name: "Вуз / колледж",
-    terms: {group:"Группа", groups:"Группы", teacher:"Преподаватель", teachers:"Преподаватели", room:"Аудитория", rooms:"Аудитории", subject:"Дисциплина", subjects:"Дисциплины", slot:"Пара", slotFew:"пары", slotGen:"пар", slotOrd:"я пара", slots:"Пар в день", person:"преподаватель", who:"Кто ведёт", where:"Где проходит", groupsDat:"группам", teachersGen:"преподавателей", teachersDat:"преподавателям", groupGen:"группы", personGen:"преподавателя", roomGen:"аудитории", subjectGen:"дисциплины"},
+    terms: {group:"Группа", groups:"Группы", teacher:"Преподаватель", teachers:"Преподаватели", room:"Аудитория", rooms:"Аудитории", subject:"Дисциплина", subjects:"Дисциплины", slot:"Пара", slotPl:"пары", slotFew:"пары", slotGen:"пар", slotOrd:"я пара", slots:"Пар в день", person:"преподаватель", who:"Кто ведёт", where:"Где проходит", groupsDat:"группам", teachersGen:"преподавателей", teachersDat:"преподавателям", groupGen:"группы", personGen:"преподавателя", roomGen:"аудитории", subjectGen:"дисциплины"},
     settings: {dayCount:6, slotCount:5, startTime:"09:00", lessonMin:90, breakMin:10, bigBreakAfter:2, bigBreakMin:40}
   },
   kinder: {
     name: "Детский сад",
-    terms: {group:"Группа", groups:"Группы", teacher:"Педагог", teachers:"Педагоги", room:"Помещение", rooms:"Помещения", subject:"Занятие", subjects:"Виды занятий", slot:"Занятие", slotFew:"занятия", slotGen:"занятий", slotOrd:"е занятие", slots:"Занятий в день", person:"педагог", who:"Кто ведёт", where:"Где проходит", groupsDat:"группам", teachersGen:"педагогов", teachersDat:"педагогам", groupGen:"группы", personGen:"педагога", roomGen:"помещения", subjectGen:"вида занятия"},
+    terms: {group:"Группа", groups:"Группы", teacher:"Педагог", teachers:"Педагоги", room:"Помещение", rooms:"Помещения", subject:"Занятие", subjects:"Виды занятий", slot:"Занятие", slotPl:"занятия", slotFew:"занятия", slotGen:"занятий", slotOrd:"е занятие", slots:"Занятий в день", person:"педагог", who:"Кто ведёт", where:"Где проходит", groupsDat:"группам", teachersGen:"педагогов", teachersDat:"педагогам", groupGen:"группы", personGen:"педагога", roomGen:"помещения", subjectGen:"вида занятия"},
     settings: {dayCount:5, slotCount:4, startTime:"09:00", lessonMin:25, breakMin:15, bigBreakAfter:2, bigBreakMin:60}
   },
   shift: {
     name: "Смены",
-    terms: {group:"Точка", groups:"Точки", teacher:"Сотрудник", teachers:"Сотрудники", room:"Пост", rooms:"Посты", subject:"Тип смены", subjects:"Типы смен", slot:"Смена", slotFew:"смены", slotGen:"смен", slotOrd:"я смена", slots:"Смен в день", person:"сотрудник", who:"Кто работает", where:"Где работает", groupsDat:"точкам", teachersGen:"сотрудников", teachersDat:"сотрудникам", groupGen:"точки", personGen:"сотрудника", roomGen:"поста", subjectGen:"типа смены"},
+    terms: {group:"Точка", groups:"Точки", teacher:"Сотрудник", teachers:"Сотрудники", room:"Пост", rooms:"Посты", subject:"Тип смены", subjects:"Типы смен", slot:"Смена", slotPl:"смены", slotFew:"смены", slotGen:"смен", slotOrd:"я смена", slots:"Смен в день", person:"сотрудник", who:"Кто работает", where:"Где работает", groupsDat:"точкам", teachersGen:"сотрудников", teachersDat:"сотрудникам", groupGen:"точки", personGen:"сотрудника", roomGen:"поста", subjectGen:"типа смены"},
     settings: {dayCount:7, slotCount:3, startTime:"08:00", lessonMin:480, breakMin:0, bigBreakAfter:0, bigBreakMin:0}
   }
 };
@@ -1069,40 +1160,100 @@ const STORE_KEY = "konstruktr-raspisaniy-v2";
 // перерыв длиннее этого (мин) считается границей блока дня: утро / после сна
 const BLOCK_GAP = 120;
 
-/* ---------- Смены педагогов ----------
-   Специалист может работать в первую смену по одним дням и во вторую по другим:
-   логопед в понедельник с утра, в среду после сна. Храним у педагога массив из
-   7 значений — по одному на день недели. */
-const SHIFT_START_DEFAULT = "13:00";     // со скольки начинается вторая смена
-const SHIFT_ORDER = ["a", "1", "2", "x"];
-const SHIFT_LABEL = {a:"∀", "1":"1", "2":"2", x:"—"};
-const SHIFT_TITLE = {a:"любая смена", "1":"только первая смена", "2":"только вторая смена", x:"выходной"};
+/* ============================================================
+   ДОСТУПНОСТЬ ПЕДАГОГА — матрица «день × занятие»
+   Смены оказались слишком грубыми: у специалиста бывает «понедельник только
+   до обеда, кроме третьего урока». Храним точную решётку: для каждого дня
+   строка из '1'/'0' по номерам занятий. Смены остались кнопками-пресетами,
+   которые эту строку заполняют.
+   ============================================================ */
+const SHIFT_START_DEFAULT = "13:00";     // граница, по которой пресеты делят день на смены
+// normalize может звать это до того, как state собран — читаем осторожно
+const shiftBoundary = () => toMin((state && state.settings && state.settings.shiftStart) || SHIFT_START_DEFAULT) ?? 13*60;
 
-const shiftBoundary = () => toMin(state.settings.shiftStart || SHIFT_START_DEFAULT) ?? 13*60;
-const normShifts = v => {
-  const out = new Array(7).fill("a");
-  if(Array.isArray(v)) for(let i=0;i<7;i++) if(SHIFT_ORDER.includes(v[i])) out[i] = v[i];
+/** График по дням: {on, from, to}. Пустое «с» — с начала дня, пустое «до» — до конца */
+function normWork(v){
+  const out = [];
+  for(let d=0; d<7; d++){
+    const w = (Array.isArray(v) && v[d] && typeof v[d] === "object") ? v[d] : null;
+    out.push({
+      on:   w ? w.on !== false : true,
+      from: w && toMin(w.from) != null ? padTime(w.from) : "",
+      to:   w && toMin(w.to)   != null ? padTime(w.to)   : ""
+    });
+  }
   return out;
-};
-/** Режим педагога в этот день: a — любая, 1 — первая, 2 — вторая, x — выходной */
-const shiftMode = (t, day) => (t && Array.isArray(t.shifts) && t.shifts[day]) || "a";
-
-/** Можно ли поставить педагогу занятие в этот день на это время */
-function shiftAllows(t, day, startMin){
-  const m = shiftMode(t, day);
-  if(m === "a") return true;
-  if(m === "x") return false;
-  if(startMin == null) return true;                 // время неизвестно — не мешаем
-  return (startMin >= shiftBoundary() ? "2" : "1") === m;
 }
-/** Работает ли педагог хоть когда-нибудь не по умолчанию — для подписи в списке */
-const hasShiftRules = t => Array.isArray(t.shifts) && t.shifts.some(x => x && x !== "a");
+/**
+ * Попадает ли занятие в рабочее время педагога.
+ * Считаем по реальному времени, а не по номеру занятия: у групп детсада
+ * третье занятие идёт в разное время, а «работает до 12:00» однозначно для всех.
+ */
+function worksAt(t, day, span){
+  if(!t || !Array.isArray(t.work)) return true;
+  const w = t.work[day];
+  if(!w) return true;
+  if(!w.on) return false;                       // выходной
+  if(!span) return true;                        // время неизвестно — не мешаем
+  const from = toMin(w.from), to = toMin(w.to);
+  if(from != null && span[0] < from) return false;   // начинается раньше прихода
+  if(to != null && span[1] > to) return false;       // заканчивается после ухода
+  return true;
+}
+/** Есть ли у педагога хоть одно ограничение — для пометки в списке */
+const hasWorkRules = t => Array.isArray(t.work) &&
+  t.work.some(w => w && (w.on === false || w.from || w.to));
+
+/** Старые проекты: смены (a/1/2/x) и матрица слотов переводятся в график по времени */
+function legacyToWork(t){
+  const bound = fmtMin(shiftBoundary());
+  if(Array.isArray(t.shifts)) return normWork(t.shifts.map(m =>
+    m === "x" ? {on:false} :
+    m === "1" ? {on:true, to: bound} :
+    m === "2" ? {on:true, from: bound} : {on:true}));
+  if(Array.isArray(t.avail)){                   // матрица слотов → крайние времена дня
+    const times = commonTimes();
+    return normWork(t.avail.map(row => {
+      if(typeof row !== "string" || !row.includes("0")) return {on:true};
+      const idx = [...row].map((c,i) => c !== "0" ? i : -1).filter(i => i >= 0);
+      if(!idx.length) return {on:false};
+      const a = times[idx[0]], b = times[idx[idx.length-1]];
+      return {on:true, from: a ? a.start : "", to: b ? b.end : ""};
+    }));
+  }
+  return normWork(null);
+}
+
+/* ---------- Прочие ограничения ----------
+   Трудность предметов пользователь задаёт сам: нормативы у школы и сада разные
+   и меняются, поэтому мы даём механизм, а не зашиваем чужие цифры. */
+/* ---------- Иконки ----------
+   SVG вместо эмодзи: эмодзи рисуются системным шрифтом — на Windows, Android
+   и iOS они разного размера, цвета и веса, а в печать уходят как картинки. */
+const svg = (path, extra) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"${extra || ""}>${path}</svg>`;
+const ICON = {
+  person:  svg(`<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>`),
+  door:    svg(`<path d="M4 21h16M6 21V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v17"/><circle cx="14.5" cy="12" r="1.1" fill="currentColor"/>`),
+  warn:    svg(`<path d="M12 3.5 2.5 20h19L12 3.5Z"/><path d="M12 10v4"/><circle cx="12" cy="17" r=".9" fill="currentColor"/>`),
+  clock:   svg(`<circle cx="12" cy="12" r="9"/><path d="M12 7v5.2l3.2 2"/>`),
+  ban:     svg(`<circle cx="12" cy="12" r="9"/><path d="M5.6 5.6 18.4 18.4"/>`),
+  pin:     svg(`<path d="M12 17v5"/><path d="M9 3h6l-1 6 3.5 3.5V14H6.5v-1.5L10 9 9 3Z" fill="currentColor" stroke="none"/><path d="M9 3h6l-1 6 3.5 3.5V14H6.5v-1.5L10 9 9 3Z"/>`),
+  pinOff:  svg(`<path d="M12 17v5"/><path d="M9 3h6l-1 6 3.5 3.5V14H6.5v-1.5L10 9 9 3Z"/>`),
+  undo:    svg(`<path d="M3 8h11a6 6 0 0 1 0 12H8"/><path d="M7 4 3 8l4 4"/>`),
+  redo:    svg(`<path d="M21 8H10a6 6 0 0 0 0 12h6"/><path d="M17 4l4 4-4 4"/>`),
+  pencil:  svg(`<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="M15 6l3 3"/>`),
+  check:   svg(`<path d="M4 12.5 9.5 18 20 6.5"/>`)
+};
+
+/** Занятия разных подгрупп идут в одной клетке параллельно и не мешают друг другу */
+const sameCell = (a, b) => !a.subgroup || !b.subgroup || a.subgroup === b.subgroup;
 
 /* ============================================================
    СОСТОЯНИЕ
    ============================================================ */
 let state = null;
-let ui = { tab:"plan", view:"group", focus:null, planGroup:null, picked:null, dragging:null, menuOpen:false, lastAdAt:0 };
+let ui = { tab:"plan", view:"group", focus:null, planGroup:null, picked:null, dragging:null, menuOpen:false, lastAdAt:0, openPlan:null, openWork:null };
 
 const uid = () => Math.random().toString(36).slice(2,9);
 const byId = (arr,id) => arr.find(x => x.id === id) || null;
@@ -1131,17 +1282,26 @@ function demoState(){
     {id:uid(), name:"6-А", maxPerDay:7}, {id:uid(), name:"6-Б", maxPerDay:7}
   ];
   const plan = [];
+  // Учитель — предметник: ведёт свои предметы во всех классах, а не раздаётся
+  // по кругу. Иначе в примере один человек преподаёт и математику, и физкультуру.
+  // Нагрузка на неделю: 20 · 16 · 20 · 20 · 16 часов на пятерых.
   const load = [
-    ["Математика",5,0,0], ["Русский язык",4,1,1], ["Литература",3,2,1],
-    ["Английский",3,4,2],  ["История",2,3,3],     ["Биология",2,2,3],
-    ["Физкультура",3,3,4], ["ИЗО",1,4,2]
+    ["Математика",   5, 0],   // Иванова
+    ["Русский язык", 4, 1],   // Петров
+    ["Литература",   3, 2],   // Смирнова — словесность и биология
+    ["Биология",     2, 2],
+    ["История",      2, 3],   // Кузнецов — история и физкультура
+    ["Физкультура",  3, 3],
+    ["Английский",   3, 4],   // Орлова — язык и ИЗО
+    ["ИЗО",          1, 4]
   ];
-  groups.forEach((g,gi) => load.forEach(([subj,hours,ti,ri]) => {
+  const homeRoom = [0, 1, 2, 3, 4];              // за каждым учителем свой кабинет
+  groups.forEach(g => load.forEach(([subj, hours, ti]) => {
     plan.push({
       id: uid(), groupId: g.id,
       subjectId: subjects.find(s => s.name === subj).id,
-      teacherId: teachers[(ti + gi) % teachers.length].id,
-      roomId: subj === "Физкультура" ? rooms[4].id : rooms[(ri + gi) % 4].id,
+      teacherId: teachers[ti].id,
+      roomId: subj === "Физкультура" ? rooms[4].id : rooms[homeRoom[ti]].id,
       hours: hours
     });
   }));
@@ -1202,7 +1362,7 @@ const groupOf    = pi => byId(state.groups, pi.groupId);
 
 /** Общие звонки — считаются по формуле из настроек */
 function commonTimes(){
-  const st = state.settings;
+  const st = (state && state.settings) || MODES.school.settings;   // может звать normalize до сборки state
   const [h,m] = String(st.startTime||"08:30").split(":").map(Number);
   let t = (h||0)*60 + (m||0);
   const out = [];
@@ -1329,7 +1489,8 @@ function computeConflicts(){
           list.push({kind:"room", text:(roomOf(a)?.name||"—") + " — занят дважды", where:when,
                      detail:(groupOf(a)?.name||"?") + " и " + (groupOf(b)?.name||"?")});
         }
-        if(a.groupId === b.groupId){
+        // у разных подгрупп занятия идут параллельно — это не накладка
+        if(a.groupId === b.groupId && sameCell(a, b)){
           add(arr[i].id,"group"); add(arr[j].id,"group");
           list.push({kind:"group", text:(groupOf(a)?.name||"—") + " — два занятия в одной клетке", where:when,
                      detail:(subjOf(a)?.name||"?") + " и " + (subjOf(b)?.name||"?")});
@@ -1337,20 +1498,31 @@ function computeConflicts(){
       }
     }
   });
-  // занятие попало в смену, когда педагог не работает
+  // занятие стоит там, где педагог не работает
   state.placements.forEach(p => {
     const pi = planById(p.planId); if(!pi || !pi.teacherId) return;
-    const t = teacherOf(pi), sp = spanOf(p);
-    if(shiftAllows(t, p.day, sp ? sp[0] : null)) return;
+    const t = teacherOf(pi);
+    if(worksAt(t, p.day, spanOf(p))) return;
     add(p.id, "shift");
-    const m = shiftMode(t, p.day);
     const tm = timeOf(p);
     list.push({kind:"shift",
-      text:(t?.name || "—") + " — " + (m === "x" ? "в этот день не работает" : "работает только в " + (m === "1" ? "первую" : "вторую") + " смену"),
+      text:(t?.name || "—") + " — в это время не работает",
       where: DAY_SHORT[p.day] + (tm ? ", " + tm.start + "–" + tm.end : ""),
       detail:(groupOf(pi)?.name || "?") + " · " + (subjOf(pi)?.name || "?")});
   });
 
+  // нарушены правила самого занятия: позиция в дне или потолок трудности
+  state.placements.forEach(p => {
+    const pi = planById(p.planId); if(!pi) return;
+    const subj = subjOf(pi), g = groupOf(pi);
+    const why = (subj && subj.notFirst && p.slot === 0) ? "стоит первым занятием"
+              : (subj && subj.notLast && p.slot === lastSlotOf(g)) ? "стоит последним занятием"
+              : null;
+    if(!why) return;
+    add(p.id, "rule");
+    list.push({kind:"rule", text:(subj?.name || "—") + " — " + why,
+      where: DAY_SHORT[p.day], detail:(g?.name || "?")});
+  });
   // схлопываем дубли
   const seen = new Set();
   const uniq = list.filter(x => {
@@ -1395,12 +1567,14 @@ function autoBuild(){
   const D = dayCount(), S = slotCount();
   const locked = state.placements.filter(p => p.locked && planById(p.planId));
 
-  // разворачиваем план в отдельные часы (сверх закреплённых)
+  // разворачиваем план в отдельные часы (сверх закреплённых).
+  // Спаренные идут блоками по два — их ставим в соседние клетки одного блока дня.
   const items = [];
   state.plan.forEach(pi => {
     const lockedCnt = locked.filter(p => p.planId === pi.id).length;
-    const need = Math.max(0, (pi.hours|0) - lockedCnt);
-    for(let i=0;i<need;i++) items.push(pi);
+    let need = Math.max(0, (pi.hours|0) - lockedCnt);
+    if(pi.paired) while(need >= 2){ items.push({pi, size:2}); need -= 2; }
+    while(need-- > 0) items.push({pi, size:1});
   });
 
   let best = null;
@@ -1432,8 +1606,9 @@ function autoBuild(){
 
   for(let attempt=0; attempt<TRIES; attempt++){
     const rnd = mulberry32(attempt * 7919 + 13);
-    // busyT/busyR: id|день -> список занятых отрезков; busyG: группа|день|слот
-    const busyT = new Map(), busyR = new Map(), busyG = new Set();
+    // busyT/busyR: id|день -> список занятых отрезков
+    // busyG: группа|день|слот -> список подгрупп в клетке
+    const busyT = new Map(), busyR = new Map(), busyG = new Map();
     const ctx = {busyT, busyR, busyG, spanAt};
     const subjDay = new Map();   // groupId|subjectId|day  -> кол-во
     const subjSlot = new Map();  // groupId|subjectId|slot -> кол-во
@@ -1459,11 +1634,13 @@ function autoBuild(){
     locked.forEach(p => { out.push({...p}); mark(planById(p.planId), p.day, p.slot, spanOf(p)); });
 
     // тяжёлые предметы расставляем раньше — им сложнее найти место
-    const order = items.map(pi => ({pi, k: (pi.hours||1) * 10 + rnd() * 9}))
-                       .sort((a,b) => b.k - a.k).map(x => x.pi);
+    // тяжёлые и спаренные расставляем раньше — им сложнее найти место
+    const order = items.map(it => ({it, k: (it.pi.hours||1) * 10 + (it.size > 1 ? 40 : 0) + rnd() * 9}))
+                       .sort((a,b) => b.k - a.k).map(x => x.it);
 
     const unplaced = [];
-    for(const pi of order){
+    for(const item of order){
+      const pi = item.pi, size = item.size;
       const g = groupOf(pi);
       const gLimit = (g && g.maxPerDay) ? g.maxPerDay : S;
       const t = teacherOf(pi);
@@ -1472,11 +1649,16 @@ function autoBuild(){
 
       for(let d=0; d<D; d++){
         const gd = groupDay.get(pi.groupId + "|" + d) || 0;
-        if(gd >= gLimit) continue;
-        if(pi.teacherId && (teachDay.get(pi.teacherId + "|" + d) || 0) >= tLimit) continue;
+        if(gd + size > gLimit) continue;
+        if(pi.teacherId && (teachDay.get(pi.teacherId + "|" + d) || 0) + size > tLimit) continue;
 
-        for(let s=0; s<S; s++){
+        for(let s=0; s + size - 1 < S; s++){
           if(!isFree(ctx, pi, d, s)) continue;
+          if(size === 2){                      // пара живёт только в соседних клетках одного блока
+            if(!isFree(ctx, pi, d, s+1)) continue;
+            const b1 = blockAt(pi, s), b2 = blockAt(pi, s+1);
+            if(!b1 || !b2 || b1.block !== b2.block) continue;
+          }
 
           const bi = blockAt(pi, s);
           let cost = (bi ? bi.pos : s) * 0.75; // тянем вверх внутри блока, чтобы не было хвостов
@@ -1501,9 +1683,11 @@ function autoBuild(){
         }
       }
 
-      if(!bestCell){ unplaced.push(pi); continue; }
-      out.push({id:uid(), planId:pi.id, day:bestCell.d, slot:bestCell.s, locked:false});
-      mark(pi, bestCell.d, bestCell.s, null);
+      if(!bestCell){ for(let k=0;k<size;k++) unplaced.push(pi); continue; }
+      for(let k=0; k<size; k++){
+        out.push({id:uid(), planId:pi.id, day:bestCell.d, slot:bestCell.s + k, locked:false});
+        mark(pi, bestCell.d, bestCell.s + k, null);
+      }
     }
 
     compact(out, ctx);
@@ -1541,6 +1725,7 @@ function repairFill(best, D, S, spanAt){
     const rnd = mulberry32(attempt * 2657 + 101);
     const placed = best.placements.map(p => ({key: uid(), planId: p.planId, day: p.day, slot: p.slot, locked: p.locked}));
     const queue = best.unplaced.slice();
+    const failed = [];                          // те, кому места не нашлось совсем
     const tabu = new Map(); let tick = 0;
 
     // мешающие занятия в клетке (d,s) для плана pi: та же клетка группы или
@@ -1550,11 +1735,15 @@ function repairFill(best, D, S, spanAt){
       if(!slotAvailable(g, s)) return null;
       if(pi.locked) return null;
       const span = spanAt(pi, d, s), hits = [];
-      if(pi.teacherId && !shiftAllows(teacherOf(pi), d, span ? span[0] : null)) return null;
+      if(pi.teacherId && !worksAt(teacherOf(pi), d, span)) return null;
+      const subj = subjOf(pi);
+      if(subj && subj.notFirst && s === 0) return null;
+      if(subj && subj.notLast && s === lastSlotOf(g)) return null;
       for(const p of placed){
         if(p.day !== d) continue;
         const q = planById(p.planId); if(!q) continue;
-        if(q.groupId === pi.groupId && p.slot === s){ if(p.locked) return null; hits.push(p); continue; }
+        // разные подгруппы делят клетку без конфликта
+        if(q.groupId === pi.groupId && p.slot === s && sameCell(q, pi)){ if(p.locked) return null; hits.push(p); continue; }
         const qs = spanAt(q, p.day, p.slot);
         if(pi.teacherId && q.teacherId === pi.teacherId && overlap(span, qs)){ if(p.locked) return null; hits.push(p); continue; }
         if(pi.roomId && q.roomId === pi.roomId && overlap(span, qs)){ if(p.locked) return null; hits.push(p); }
@@ -1585,26 +1774,46 @@ function repairFill(best, D, S, spanAt){
           if(cost < bestCost){ bestCost = cost; cell = {d, s}; evict = hits; }
         }
       }
-      if(!cell) continue;
+      if(!cell){ failed.push(pi); continue; }   // места нет — не теряем, вернём в «Не расставлено»
       evict.forEach(h => { placed.splice(placed.indexOf(h), 1); queue.push(planById(h.planId)); });
       const np = {key: uid(), planId: pi.id, day: cell.d, slot: cell.s, locked: false};
       placed.push(np); tabu.set(np.key, tick);
     }
 
     const cur = {placements: placed.map(p => ({id: uid(), planId: p.planId, day: p.day, slot: p.slot, locked: p.locked})),
-                 unplaced: queue.slice()};
+                 unplaced: queue.concat(failed)};
     if(!result || cur.unplaced.length < result.unplaced.length) result = cur;
   }
   return result;
 }
 
+/** Последний существующий слот в сетке группы — для запрета «не последним» */
+function lastSlotOf(group){
+  if(group && group.slots && group.slots.length){
+    for(let i = group.slots.length - 1; i >= 0; i--) if(group.slots[i] && group.slots[i].start) return i;
+  }
+  return slotCount() - 1;
+}
+
+/** Нарушает ли клетка запреты самого предмета по позиции в дне */
+function ruleBlocks(pi, s){
+  const subj = subjOf(pi);
+  if(!subj) return false;
+  if(subj.notFirst && s === 0) return true;
+  if(subj.notLast && s === lastSlotOf(byId(state.groups, pi.groupId))) return true;
+  return false;
+}
+
 /* --- занятость: группа держится за слот, педагог и кабинет — за отрезок времени --- */
 function isFree(ctx, pi, d, s){
   if(!slotAvailable(byId(state.groups, pi.groupId), s)) return false;
-  if(ctx.busyG.has(pi.groupId + "|" + d + "|" + s)) return false;
+  // клетку группы могут делить разные подгруппы — параллельные занятия не мешают
+  const here = ctx.busyG.get(pi.groupId + "|" + d + "|" + s);
+  if(here && here.some(sg => sameCell({subgroup: sg}, pi))) return false;
+  if(ruleBlocks(pi, s)) return false;
   const span = ctx.spanAt(pi, d, s);
-  // педагог в этот день работает в другую смену или отдыхает
-  if(pi.teacherId && !shiftAllows(teacherOf(pi), d, span ? span[0] : null)) return false;
+  // педагог в этот день в это занятие не работает
+  if(pi.teacherId && !worksAt(teacherOf(pi), d, span)) return false;
   const hit = (map, id) => {
     if(!id) return false;
     const arr = map.get(id + "|" + d);
@@ -1616,8 +1825,17 @@ function isFree(ctx, pi, d, s){
 
 function occupy(ctx, pi, d, s, on, span){
   const key = pi.groupId + "|" + d + "|" + s;
-  if(on) ctx.busyG.add(key); else ctx.busyG.delete(key);
-
+  if(on){
+    if(!ctx.busyG.has(key)) ctx.busyG.set(key, []);
+    ctx.busyG.get(key).push(pi.subgroup || 0);
+  }else{
+    const arr = ctx.busyG.get(key);
+    if(arr){
+      const i = arr.indexOf(pi.subgroup || 0);
+      if(i >= 0) arr.splice(i, 1);
+      if(!arr.length) ctx.busyG.delete(key);
+    }
+  }
   const sp = span || ctx.spanAt(pi, d, s) || {slot:s};
   const put = (map, id) => {
     if(!id) return;
@@ -1649,7 +1867,7 @@ function compact(list, ctx){
     const sorted = [...list].sort((a,b) => a.slot - b.slot);
     for(const p of sorted){
       if(p.locked) continue;
-      const pi = planById(p.planId); if(!pi) continue;
+      const pi = planById(p.planId); if(!pi || pi.paired) continue;   // пару не разрываем
       for(let s=0; s<p.slot; s++){
         if(!isFree(ctx, pi, p.day, s)) continue;
         occupy(ctx, pi, p.day, p.slot, false);
@@ -1692,7 +1910,7 @@ function swapPass(list, ctx){
         const a = items[i], b = items[j];
         if(a.locked || b.locked) continue;
         const pa = planById(a.planId), pb = planById(b.planId);
-        if(!pa || !pb) continue;
+        if(!pa || !pb || pa.paired || pb.paired) continue;   // пары не переставляем
         if(a.day === b.day && a.slot === b.slot) continue;
 
         occupy(ctx, pa, a.day, a.slot, false);
@@ -1754,6 +1972,51 @@ function currentGroup(){
   return byId(state.groups, ui.planGroup) || state.groups[0] || null;
 }
 
+/**
+ * Тонкая настройка строки нагрузки: подгруппа, спаренность, трудность и запреты
+ * по позиции. Свёрнута по умолчанию — иначе список превращается в простыню,
+ * а нужны эти поля не каждый день.
+ */
+function planExtra(p, s, T){
+  const open = ui.openPlan === p.id;
+  const marks = [];
+  if(p.subgroup) marks.push("подгруппа " + p.subgroup);
+  if(p.paired) marks.push("парой");
+  if(s && s.notFirst) marks.push("не первым");
+  if(s && s.notLast) marks.push("не последним");
+  const summary = marks.length ? marks.join(" · ") : "тонкая настройка";
+
+  let h = `<button class="pi-more ${marks.length ? "has-rules" : ""}" data-act="planMore" data-id="${p.id}"
+        title="Подгруппы, спаренные занятия, трудность и запреты по позиции в дне">${open ? "свернуть" : esc(summary)}</button>`;
+  if(!open) return h;
+
+  const sub = p.subgroup || 0;
+  h += `<div class="exp ${opening.plan ? "" : "is-open"}"><div class="exp-clip"><div class="pi-extra">
+    <div class="px-row">
+      <span class="px-lbl" title="Если ${esc(T.group.toLowerCase())} делится: две подгруппы занимаются одновременно у разных ${esc(T.teachersGen)}">Подгруппа</span>
+      <div class="seg px-seg">
+        ${[0,1,2].map(n => `<button data-act="subgroup" data-id="${p.id}" data-n="${n}" class="${sub===n?"is-on":""}"
+             title="${n===0 ? "Занятие для всей " + esc(T.group.toLowerCase()) : "Только " + n + "-я подгруппа — идёт параллельно со второй"}">${n===0?"вся":n}</button>`).join("")}
+      </div>
+    </div>
+    <label class="px-check" title="Два занятия подряд одним блоком — ставятся в соседние клетки">
+      <input type="checkbox" data-act="paired" data-id="${p.id}" ${p.paired ? "checked" : ""}>
+      <span>Спаренные ${esc(T.slotPl)}</span>
+    </label>`;
+
+  if(s){
+    h += `<div class="px-sep"></div>
+    <label class="px-check" title="Не ставить «${esc(s.name)}» первым занятием дня">
+      <input type="checkbox" data-act="notFirst" data-sid="${s.id}" ${s.notFirst ? "checked" : ""}>
+      <span>Не первым занятием</span></label>
+    <label class="px-check" title="Не ставить «${esc(s.name)}» последним занятием дня">
+      <input type="checkbox" data-act="notLast" data-sid="${s.id}" ${s.notLast ? "checked" : ""}>
+      <span>Не последним занятием</span></label>
+    <p class="px-note">Запреты — свойство ${esc(T.subjectGen)} «${esc(s.name)}»: действуют во всех ${esc(T.groupsDat)}.</p>`;
+  }
+  return h + `</div></div></div>`;
+}
+
 function tplPlan(T){
   const g = currentGroup();
   if(!g) return `<div class="empty">Сначала добавь ${T.groups.toLowerCase()} на вкладке «Ресурсы»</div>`;
@@ -1807,6 +2070,7 @@ function tplPlan(T){
         <span class="hrs"><input type="number" min="0" max="40" value="${p.hours|0}" data-act="hours" data-id="${p.id}"
                title="Сколько ${esc(T.slotGen)} в неделю по этой строке: расставлено ${placed} из ${p.hours|0}"></span>
       </div>
+      ${planExtra(p, s, T)}
       <div class="plan-progress"><i style="width:${pct}%"></i></div>
     </div>`;
   });
@@ -1840,15 +2104,55 @@ function tplRes(T){
     return h;
   };
 
-  /** Полоска смен под педагогом: по кнопке на каждый учебный день */
+  /**
+   * График педагога: слева подпись, в центре дни, справа «Настроить».
+   * По кнопке разворачивается колонка дней с тумблером и рамками времени —
+   * «с» пустое значит с начала занятий, «до» пустое — до конца.
+   */
   function shiftStrip(t, T){
-    let h = `<div class="shift-row"><span class="shift-lbl" title="В какую смену ${esc(T.personGen)} «${esc(t.name)}» работает в каждый день недели. Нажимай на день, чтобы переключить">Смены</span>`;
-    for(let d=0; d<dayCount(); d++){
-      const m = shiftMode(t, d);
-      h += `<button class="shift-day is-${m}" data-act="shiftDay" data-id="${t.id}" data-d="${d}"
-              title="${DAY_NAMES[d]} — ${esc(SHIFT_TITLE[m])}. Нажми, чтобы сменить">${DAY_SHORT[d]}<i>${SHIFT_LABEL[m]}</i></button>`;
+    const open = ui.openWork === t.id;
+    const w = normWork(t.work);
+    const D = dayCount();
+    // подпись и кнопка держат первую строку, дни идут ровной сеткой под ними —
+    // иначе на шести-семи днях «Настроить» срывается вниз и прыгает по строкам
+    let h = `<div class="shift-row">
+      <span class="shift-lbl" title="В какие дни и часы ${esc(T.person)} «${esc(t.name)}» доступен">График</span>
+      <button class="shift-more ${open ? "is-done" : ""}" data-act="workOpen" data-id="${t.id}"
+        title="${open ? "Свернуть настройку графика" : "Задать дни и часы работы"}">${open ? "Готово" : "Настроить"}</button>
+      <div class="shift-days" style="--n:${D}">`;
+    for(let d=0; d<D; d++){
+      const day = w[d];
+      const st = !day.on ? "x" : (day.from || day.to) ? "p" : "a";
+      const label = !day.on ? "выходной"
+                  : (day.from || day.to) ? ((day.from || "с начала") + " – " + (day.to || "до конца"))
+                  : "весь день";
+      h += `<span class="shift-day is-${st}" title="${DAY_NAMES[d]}: ${esc(label)}">${DAY_SHORT[d]}</span>`;
     }
-    return h + `</div>`;
+    h += `</div></div>`;
+    if(!open) return h;
+
+    // обёртка нужна для плавного раскрытия: анимируем строку грида 0fr → 1fr.
+    // При самом открытии рисуем свёрнутой, класс добавится следующим кадром —
+    // иначе переходу не от чего отталкиваться и блок появится рывком.
+    h += `<div class="exp ${opening.work ? "" : "is-open"}"><div class="exp-clip"><div class="work-days">`;
+    for(let d=0; d<dayCount(); d++){
+      const day = w[d];
+      h += `<div class="wd-row ${day.on ? "" : "is-off"}">
+        <label class="wd-on" title="${DAY_NAMES[d]} — ${day.on ? "рабочий день" : "выходной"}">
+          <input type="checkbox" data-act="workOn" data-id="${t.id}" data-d="${d}" ${day.on ? "checked" : ""}>
+          <b>${DAY_SHORT[d]}</b>
+        </label>
+        <span class="wd-t">с</span>
+        <input type="text" class="t-in" inputmode="numeric" maxlength="5" placeholder="начала"
+               value="${esc(day.from)}" data-act="workFrom" data-id="${t.id}" data-d="${d}"
+               title="С какого времени доступен в ${DAY_NAMES[d].toLowerCase()}. Пусто — с начала занятий">
+        <span class="wd-t">до</span>
+        <input type="text" class="t-in" inputmode="numeric" maxlength="5" placeholder="конца"
+               value="${esc(day.to)}" data-act="workTo" data-id="${t.id}" data-d="${d}"
+               title="До какого времени доступен в ${DAY_NAMES[d].toLowerCase()}. Пусто — до конца занятий">
+      </div>`;
+    }
+    return h + `<p class="px-note">Занятие поставим, только если оно целиком помещается в эти часы.</p></div></div></div>`;
   }
 
   const capFor = whose => it =>
@@ -1865,8 +2169,8 @@ function tplRes(T){
                capFor(T.personGen),
                it => `Имя ${T.personGen} «${it.name}» — подставляется в карточки занятий и в сводку нагрузки при печати`)
        + `<p class="hint">Поле справа — сколько ${T.slotGen} максимум в день у ${T.personGen}. Пусто (∞) — без ограничения.
-          Ниже — смены: <b>∀</b> любая, <b>1</b> только первая, <b>2</b> только вторая, <b>—</b> выходной.
-          Вторая смена начинается в ${esc(state.settings.shiftStart || SHIFT_START_DEFAULT)} — это меняется в «Настройках».</p><div class="sep"></div>`
+          Ниже — по каким дням и занятиям человек доступен: нажмите на день, чтобы отметить точно.
+          Внутри есть быстрые кнопки «все / 1-я / 2-я смена / выходной».</p><div class="sep"></div>`
        + block("rooms", T.rooms, state.rooms, null,
                it => `Название ${T.roomGen} «${it.name}» — конструктор следит, чтобы он не был занят двумя занятиями одновременно`);
 }
@@ -2066,23 +2370,40 @@ function cardHTML(p, cmap, readonly){
     ? [g && shortName(g.name), r && r.name].filter(Boolean).join(" · ")   // по людям: короткое имя группы
     : [t && t.name, r && r.name].filter(Boolean).join(" · ");
   const flags = [];
-  if(why.includes("teacher")) flags.push(`<span title="${esc(t?t.name:"")} занят в это же время">👤</span>`);
-  if(why.includes("room"))    flags.push(`<span title="${esc(r?r.name:"")} занят в это же время">🚪</span>`);
-  if(why.includes("group"))   flags.push(`<span title="Две карточки в одной клетке">⚠</span>`);
-  if(why.includes("shift"))   flags.push(`<span title="${esc(t?t.name:"")} в этот день работает в другую смену">🕒</span>`);
+  if(why.includes("teacher")) flags.push(`<span class="c-ic" title="${esc(t?t.name:"")} занят в это же время">${ICON.person}</span>`);
+  if(why.includes("room"))    flags.push(`<span class="c-ic" title="${esc(r?r.name:"")} занят в это же время">${ICON.door}</span>`);
+  if(why.includes("group"))   flags.push(`<span class="c-ic" title="Две карточки в одной клетке">${ICON.warn}</span>`);
+  if(why.includes("shift"))   flags.push(`<span class="c-ic" title="${esc(t?t.name:"")} в это время не работает">${ICON.clock}</span>`);
+  if(why.includes("rule"))    flags.push(`<span class="c-ic" title="Нарушен запрет по позиции в дне">${ICON.ban}</span>`);
   // по людям колонки времени слева нет — печатаем время в клетке; в группе оно уже в колонке
   const tm = readonly ? timeOf(p) : (p.time && p.time.start ? p.time : null);
   const timeTag = tm && tm.start ? `<span class="c-time">${esc(tm.start)}–${esc(tm.end)}</span>` : "";
 
+  // Больше двух значков карточка не выдерживает: при ширине 96px четыре флажка
+  // съедали всё место под название. Показываем два, полный разбор — в подсказке
+  // карточки и в списке накладок под сеткой.
+  const shown = flags.slice(0, 2);
+  // место резервируем только под постоянно видимое: булавка всплывает по наведению,
+  // и держать под неё пустоту на каждой карточке — расточительно
+  const icons = shown.length + (p.locked ? 1 : 0);
+
   // в виде «по людям» карточка — только для просмотра: не таскается, без кнопки-булавки
   const corner = readonly
-    ? (p.locked ? `<div class="c-flags">${flags.join("")}<span title="закреплено">📌</span></div>` : (flags.length ? `<div class="c-flags">${flags.join("")}</div>` : ""))
-    : `<div class="c-flags">${flags.join("")}<button class="pin ${p.locked?"is-on":""}" data-act="pin" data-pid="${p.id}" title="${p.locked?"Открепить":"Закрепить — автосборка не тронет"}">${p.locked?"📌":"📍"}</button></div>`;
+    ? (p.locked ? `<div class="c-flags">${shown.join("")}<span class="c-ic is-pin" title="закреплено">${ICON.pin}</span></div>`
+                : (shown.length ? `<div class="c-flags">${shown.join("")}</div>` : ""))
+    : `<div class="c-flags">${shown.join("")}<button class="pin ${p.locked?"is-on":""}" data-act="pin" data-pid="${p.id}"
+         title="${p.locked?"Открепить":"Закрепить — автосборка не тронет"}">${p.locked ? ICON.pin : ICON.pinOff}</button></div>`;
 
-  return `<div class="card ${why.length?"has-conflict":""} ${readonly?"card-view":""} ${ui.picked==="placement:"+p.id?"is-picked":""}"
+  // все причины перечисляем в подсказке — даже те, чьи значки не поместились
+  const reasons = {teacher:"педагог занят", room:"помещение занято", group:"две карточки в клетке",
+                   shift:"педагог в это время не работает", rule:"нарушен запрет по позиции"};
+  const tip = [ (s?s.name:""), sub ].filter(Boolean).join(" · ")
+    + (why.length ? "\nНакладка: " + why.map(k => reasons[k] || k).join(", ") : "");
+
+  return `<div class="card ${why.length?"has-conflict":""} ${readonly?"card-view":""} ${timeTag?"has-time":""} ${ui.picked==="placement:"+p.id?"is-picked":""}"
     ${readonly ? "" : `draggable="true"`} data-pid="${p.id}" tabindex="0"
-    style="--cbg:${hexA(color,.17)};--cbd:${hexA(color,.5)}"
-    title="${esc((s?s.name:"") + (sub?" · "+sub:""))}">
+    style="--cbg:${hexA(color,.17)};--cbd:${hexA(color,.5)};--ic:${icons}"
+    title="${esc(tip)}">
     ${corner}
     ${timeTag}
     <span class="c-title">${esc(s ? s.name : "—")}</span>
@@ -2108,7 +2429,7 @@ function renderBank(){
   });
 
   if(!items.length){
-    wrap.innerHTML = `<div class="bank-empty">Всё разложено по клеткам ✓</div>`;
+    wrap.innerHTML = `<div class="bank-empty"><span class="c-ic is-ok">${ICON.check}</span> Всё разложено по клеткам</div>`;
   }else{
     wrap.innerHTML = items.map(pi => {
       const s = subjOf(pi), t = teacherOf(pi), r = roomOf(pi), g = groupOf(pi);
@@ -2278,7 +2599,7 @@ function comboFill(){
   if(isTouch() && combo.input.readOnly && !combo.wrap.dataset.nocreate){
     h += `${h ? '<hr class="combo-sep">' : ""}
       <button type="button" class="combo-opt is-manual" data-manual="1">
-        <span class="nm">✎ Ввести своё название</span></button>`;
+        <span class="c-ic">${ICON.pencil}</span><span class="nm">Ввести своё название</span></button>`;
   }
   if(!typed && combo.kind === "rooms" && all.length){
     h += `<hr class="combo-sep"><button type="button" class="combo-opt" data-name="" title="Не указывать помещение — тогда его занятость не проверяется">
@@ -2372,6 +2693,7 @@ $("#panelBody").addEventListener("keydown", e => {
 function movePlacement(pid, d, s){
   const p = state.placements.find(x => x.id === pid); if(!p) return;
   const pi = planById(p.planId); if(!pi) return;
+  snapshot();
   // в этой клетке уже есть карточка того же контекста — меняем их местами
   const occupant = state.placements.find(x => {
     if(x.id === pid || x.day !== d || x.slot !== s) return false;
@@ -2392,11 +2714,13 @@ function movePlacement(pid, d, s){
 function createPlacement(planId, d, s){
   const pi = planById(planId); if(!pi) return;
   if(placedHours(planId) >= (pi.hours|0)) return;
+  snapshot();
   state.placements.push({id:uid(), planId, day:d, slot:s, locked:false});
   ui.picked = null;
   commit();
 }
 function removePlacement(pid){
+  snapshot();
   state.placements = state.placements.filter(x => x.id !== pid);
   ui.picked = null;
   commit();
@@ -2455,7 +2779,7 @@ function bindGrid(){
     if(pin) pin.addEventListener("click", e => {
       e.stopPropagation();
       const p = state.placements.find(x => x.id === pid);
-      if(p){ p.locked = !p.locked; commit(); }
+      if(p){ snapshot(); p.locked = !p.locked; commit(); }
     });
   });
 }
@@ -2512,6 +2836,7 @@ $("#panelBody").addEventListener("click", e => {
 
   if(act === "addPlan"){
     const g = currentGroup(); if(!g) return;
+    snapshot();
     state.plan.push({id:uid(), groupId:g.id, subjectId:null, teacherId:null, roomId:null, hours:1});
     commit();
     setTimeout(() => {
@@ -2520,6 +2845,7 @@ $("#panelBody").addEventListener("click", e => {
     }, 30);
   }
   else if(act === "delPlan"){
+    snapshot();
     const id = el.dataset.id;
     state.plan = state.plan.filter(p => p.id !== id);
     state.placements = state.placements.filter(p => p.planId !== id);
@@ -2555,6 +2881,7 @@ $("#panelBody").addEventListener("click", e => {
     commit();
   }
   else if(act === "delRes"){
+    snapshot();
     const kind = el.dataset.kind, id = el.dataset.id;
     state[kind] = state[kind].filter(x => x.id !== id);
     if(kind === "groups"){
@@ -2569,11 +2896,15 @@ $("#panelBody").addEventListener("click", e => {
     }
     commit();
   }
-  else if(act === "shiftDay"){
-    const t = byId(state.teachers, el.dataset.id); if(!t) return;
-    const d = +el.dataset.d;
-    t.shifts = normShifts(t.shifts);
-    t.shifts[d] = SHIFT_ORDER[(SHIFT_ORDER.indexOf(t.shifts[d]) + 1) % SHIFT_ORDER.length];
+  else if(act === "workOpen"){
+    toggleWork(el.dataset.id);
+  }
+  else if(act === "planMore"){
+    togglePlan(el.dataset.id);
+  }
+  else if(act === "subgroup"){
+    const p = planById(el.dataset.id); if(!p) return;
+    p.subgroup = +el.dataset.n || 0;
     commit();
   }
   else if(act === "mode"){
@@ -2606,11 +2937,82 @@ $("#panelBody").addEventListener("click", e => {
   }
   else if(act === "clearGrid"){
     ask("Очистить сетку?", "Все расставленные занятия вернутся в «Не расставлено». Нагрузка и ресурсы сохранятся.",
-        () => { state.placements = []; commit(); toast("Сетка очищена"); });
+        () => { snapshot(); state.placements = []; commit(); toast("Сетка очищена"); });
   }
 });
 
 $("#panelBody").addEventListener("change", onPanelInput);
+
+/**
+ * Подводит строку к верху панели. Панель двигаем сразу — так позиция известна
+ * и можно проверить окно; страницу подтягиваем плавно и только если строка
+ * реально уехала за экран, чтобы не дёргать вид на каждый клик.
+ */
+/* ---------- Раскрывающиеся блоки панели ----------
+   Флаг живёт ровно один кадр: он говорит шаблону нарисовать блок свёрнутым,
+   чтобы следующим кадром класс is-open запустил переход. Без него блок
+   появлялся бы рывком, а при обычной перерисовке анимация не повторялась. */
+const opening = {work:false, plan:false};
+const ANIM = () => matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 300;
+
+/**
+ * Разворачивает и сворачивает секцию с анимацией высоты.
+ * field   — что помним в ui (openWork / openPlan)
+ * flag    — ключ в opening, чтобы шаблон знал про первый кадр
+ * scroll  — селектор строки, которую подтянуть к верху панели (необязательно)
+ */
+function toggleSection(field, flag, id, scroll){
+  const isOpening = ui[field] !== id;
+  const wrap = $("#panelBody").querySelector(".exp.is-open");
+
+  if(!isOpening){
+    if(wrap && ANIM()){                       // сворачиваем, DOM убираем после перехода
+      wrap.classList.remove("is-open");
+      ui[field] = null;
+      setTimeout(() => { if(!ui[field]) renderPanel(); }, ANIM());
+      return;
+    }
+    ui[field] = null; renderPanel(); return;
+  }
+
+  ui[field] = id;
+  opening[flag] = ANIM() > 0;
+  renderPanel();
+  opening[flag] = false;
+  if(ANIM()){
+    requestAnimationFrame(() => {
+      const w = $("#panelBody").querySelector(".exp");
+      if(w) w.classList.add("is-open");
+    });
+  }
+  if(scroll) scrollPanelTo(scroll);
+}
+
+// имя педагога подтягиваем к верху: иначе список дней разворачивается ниже экрана
+const toggleWork = id => toggleSection("openWork", "work", id, `[data-act="renameRes"][data-id="${id}"]`);
+const togglePlan = id => toggleSection("openPlan", "plan", id, `[data-act="subject"][data-id="${id}"]`);
+
+function scrollPanelTo(selector){
+  const pb = $("#panelBody");
+  const el = pb.querySelector(selector);
+  if(!el) return;
+  const row = el.closest(".res-item") || el;
+  const r0 = row.getBoundingClientRect();
+  const smooth = !matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const move = smooth ? "smooth" : "auto";
+
+  const want = pb.scrollTop + r0.top - pb.getBoundingClientRect().top - 8;
+  const to = Math.max(0, Math.min(want, pb.scrollHeight - pb.clientHeight));
+  const delta = to - pb.scrollTop;                  // на столько уедет содержимое панели
+  pb.scrollTo({top: to, behavior: move});
+
+  // куда строка приедет в окне — считаем заранее, чтобы обе прокрутки шли разом
+  const futureTop = r0.top - delta;
+  const pad = 90;                                   // под липкую шапку
+  if(futureTop < pad || futureTop + r0.height > innerHeight){
+    window.scrollBy({top: futureTop - pad, behavior: move});
+  }
+}
 
 /* Обновляет доску, не трогая панель: поле под курсором не перерисовывается */
 function refreshBoard(){
@@ -2668,6 +3070,16 @@ $("#orgTitle").addEventListener("keydown", e => { if(e.key === "Enter") e.target
 
 /** Кладёт время в состояние и обновляет сетку — панель не перерисовываем */
 function writeTime(el, value){
+  const act = el.dataset.act;
+  if(act === "workFrom" || act === "workTo"){        // пустое поле — законное значение
+    const t = byId(state.teachers, el.dataset.id); if(!t) return;
+    t.work = normWork(t.work);
+    const d = +el.dataset.d;
+    t.work[d][act === "workFrom" ? "from" : "to"] = el.value.trim() ? value : "";
+    if(el.value.trim()) t.work[d].on = true;
+    refreshBoard();
+    return;
+  }
   if(!value) return;
   if(el.dataset.act === "gslot"){
     const g = currentGroup(); if(!g || !g.slots) return;
@@ -2704,6 +3116,35 @@ function onPanelInput(e){
     else ui.planGroup = g.id;
     ui.picked = null;
     render();
+    return;
+  }
+
+  if(act === "workOn" || act === "workFrom" || act === "workTo"){
+    const t = byId(state.teachers, el.dataset.id); if(!t) return;
+    const d = +el.dataset.d;
+    t.work = normWork(t.work);
+    if(act === "workOn") t.work[d].on = el.checked;
+    else {
+      const v = el.value.trim() ? padTime(el.value) : "";
+      t.work[d][act === "workFrom" ? "from" : "to"] = v;
+      if(e.type !== "input") el.value = v;      // по выходу из поля дописываем до 09:00
+      if(v) t.work[d].on = true;                // задали время — день явно рабочий
+    }
+    save();
+    if(e.type === "input") refreshBoard(); else { renderPanel(); refreshBoard(); }
+    return;
+  }
+
+  if(act === "paired"){
+    const p = planById(el.dataset.id); if(!p) return;
+    p.paired = el.checked;
+    commit();
+    return;
+  }
+  if(act === "notFirst" || act === "notLast"){
+    const s = byId(state.subjects, el.dataset.sid); if(!s) return;
+    s[act] = el.checked;
+    save(); renderPanel(); refreshBoard();
     return;
   }
 
@@ -2803,6 +3244,44 @@ document.querySelectorAll(".panel-tab").forEach(b => b.addEventListener("click",
 }));
 $("#orgTitle").addEventListener("input", e => { state.title = e.target.value; save(); });
 
+/* ============================================================
+   ИСТОРИЯ ДЕЙСТВИЙ
+   Перетаскивание без отмены — источник страха: уронил карточку не туда
+   и вручную вспоминай, где она была. Снимок делаем ПЕРЕД изменением,
+   только на значимых действиях — не на каждой букве в поле ввода.
+   ============================================================ */
+const HISTORY_MAX = 40;
+let past = [], future = [];
+
+function snapshot(){
+  try{
+    past.push(JSON.stringify(state));
+    if(past.length > HISTORY_MAX) past.shift();
+    future.length = 0;                    // новая ветка обрывает «вернуть»
+    updateHistory();
+  }catch(e){ /* состояние не сериализуется — просто не запоминаем шаг */ }
+}
+function applyHistory(from, to){
+  if(!from.length) return;
+  to.push(JSON.stringify(state));
+  state = normalize(JSON.parse(from.pop()));
+  ui.picked = null;
+  save(); render(); updateHistory();
+}
+const undo = () => { if(past.length){ applyHistory(past, future); toast("Отменено"); } };
+const redo = () => { if(future.length){ applyHistory(future, past); toast("Возвращено"); } };
+
+function updateHistory(){
+  const u = $("#btnUndo"), r = $("#btnRedo");
+  if(!u) return;
+  u.disabled = !past.length;
+  r.disabled = !future.length;
+  u.innerHTML = ICON.undo;
+  r.innerHTML = ICON.redo;
+}
+$("#btnUndo").addEventListener("click", undo);
+$("#btnRedo").addEventListener("click", redo);
+
 function commit(){ save(); render(); }
 
 /* ============================================================
@@ -2824,6 +3303,7 @@ $("#btnBuild").addEventListener("click", () => {
 
 function applyBuild(res){
   if(!res) return;
+  snapshot();                       // пересборка стирает ручную правку — даём откатиться
   state.placements = res.placements;
   commit();
   const left = res.unplaced.length;
@@ -3444,7 +3924,13 @@ function normalize(s){
   s.mode = MODES[s.mode] ? s.mode : "school";
   s.settings = {...MODES[s.mode].settings, ...(s.settings||{})};
   s.subjects   = (s.subjects||[]).map((x,i) => ({color:PALETTE[i % PALETTE.length], ...x}));
-  s.teachers   = (s.teachers||[]).map(t => ({...t, shifts: normShifts(t.shifts)}));
+  // старые проекты хранили смены или матрицу слотов — переводим в график по времени
+  s.teachers   = (s.teachers||[]).map(t => {
+    const out = {...t, work: Array.isArray(t.work) ? normWork(t.work) : legacyToWork(t)};
+    delete out.shifts; delete out.avail;
+    return out;
+  });
+  s.subjects   = s.subjects.map(x => ({notFirst:false, notLast:false, ...x}));
   s.rooms      = s.rooms || [];
   s.groups     = s.groups || [];
   s.plan       = (s.plan||[]).map(p => ({hours:1, ...p}));
@@ -3499,6 +3985,12 @@ document.addEventListener("keydown", e => {
     fileMenu.classList.remove("is-open");
   }
   if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "p"){ e.preventDefault(); $("#btnPrint").click(); }
+  // отмена и возврат: Ctrl+Z / Ctrl+Shift+Z, привычный Ctrl+Y тоже понимаем
+  if((e.ctrlKey || e.metaKey) && !e.altKey){
+    const k = e.key.toLowerCase();
+    if(k === "z" && !e.shiftKey){ e.preventDefault(); undo(); }
+    else if((k === "z" && e.shiftKey) || k === "y"){ e.preventDefault(); redo(); }
+  }
   if(e.key === "Enter" && (e.ctrlKey || e.metaKey)){ e.preventDefault(); $("#btnBuild").click(); }
 });
 
@@ -3508,6 +4000,7 @@ document.addEventListener("keydown", e => {
 state = normalize(load() || demoState());
 ui.tab = state.groups.length ? "plan" : "res";   // пустой проект — начинаем с ресурсов
 render();
+updateHistory();                                  // рисуем иконки в кнопках отмены
 if(!localStorage.getItem(STORE_KEY)){
   save();
   setTimeout(() => toast("Это пример. Правь нагрузку слева и жми «Собрать расписание»"), 700);
