@@ -440,9 +440,17 @@ body.is-touch .shift-row{gap:7px; padding-bottom:10px}
 }
 /* пока едет высота — прячем полосу прокрутки, иначе она мигает на каждом кадре */
 .combo-menu.is-anim{overflow:hidden}
-/* закрывается вдвое быстрее, чем открывается: уходящий список не должен
-   висеть на пути у того, что уже открылось рядом */
-.combo-menu.is-out{pointer-events:none; transition-duration:.15s}
+/* На закрытии --ease не годится: это expo-out, он сбрасывает почти всю высоту
+   за первые кадры, и список выглядит просто исчезнувшим. Берём симметричную
+   кривую — движение распределено ровно по всей четверти секунды и его видно. */
+.combo-menu.is-out{
+  pointer-events:none;
+  /* padding и рамка в height не сжимаются: без этого на нуле остаётся полоска
+     в 12px и висит до удаления узла */
+  padding-top:0; padding-bottom:0; border-top-width:0; border-bottom-width:0;
+  transition:height .24s cubic-bezier(.4,0,.2,1), padding .24s cubic-bezier(.4,0,.2,1),
+             border-width .24s cubic-bezier(.4,0,.2,1), opacity .22s cubic-bezier(.4,0,.2,1);
+}
 .combo-menu::-webkit-scrollbar{width:8px}
 .combo-menu::-webkit-scrollbar-thumb{background:var(--line-2); border-radius:8px; border:2px solid var(--surface)}
 .combo-opt{
@@ -2587,7 +2595,7 @@ function comboClose(){
   comboGhost = {menu, timer: setTimeout(() => {
     if(comboGhost && comboGhost.menu === menu) comboGhost = null;
     menu.remove();
-  }, 170)};
+  }, 260)};
 }
 
 function comboPlace(){
