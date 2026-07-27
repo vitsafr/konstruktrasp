@@ -436,7 +436,13 @@ body.is-touch .shift-row{gap:7px; padding-bottom:10px}
   background:var(--surface); border:1px solid var(--line-2);
   border-radius:var(--r-l); box-shadow:var(--sh-2);
   padding:5px; max-height:246px; overflow-y:auto; overscroll-behavior:contain;
+  transition:height .28s var(--ease), opacity .2s var(--ease);
 }
+/* пока едет высота — прячем полосу прокрутки, иначе она мигает на каждом кадре */
+.combo-menu.is-anim{overflow:hidden}
+/* закрывается вдвое быстрее, чем открывается: уходящий список не должен
+   висеть на пути у того, что уже открылось рядом */
+.combo-menu.is-out{pointer-events:none; transition-duration:.15s}
 .combo-menu::-webkit-scrollbar{width:8px}
 .combo-menu::-webkit-scrollbar-thumb{background:var(--line-2); border-radius:8px; border:2px solid var(--surface)}
 .combo-opt{
@@ -1224,9 +1230,6 @@ function legacyToWork(t){
   return normWork(null);
 }
 
-/* ---------- Прочие ограничения ----------
-   Трудность предметов пользователь задаёт сам: нормативы у школы и сада разные
-   и меняются, поэтому мы даём механизм, а не зашиваем чужие цифры. */
 /* ---------- Иконки ----------
    SVG вместо эмодзи: эмодзи рисуются системным шрифтом — на Windows, Android
    и iOS они разного размера, цвета и веса, а в печать уходят как картинки. */
@@ -1511,7 +1514,7 @@ function computeConflicts(){
       detail:(groupOf(pi)?.name || "?") + " · " + (subjOf(pi)?.name || "?")});
   });
 
-  // нарушены правила самого занятия: позиция в дне или потолок трудности
+  // нарушены правила самого занятия: запрет на позицию в дне
   state.placements.forEach(p => {
     const pi = planById(p.planId); if(!pi) return;
     const subj = subjOf(pi), g = groupOf(pi);
@@ -1973,8 +1976,8 @@ function currentGroup(){
 }
 
 /**
- * Тонкая настройка строки нагрузки: подгруппа, спаренность, трудность и запреты
- * по позиции. Свёрнута по умолчанию — иначе список превращается в простыню,
+ * Тонкая настройка строки нагрузки: подгруппа, спаренность и запреты по позиции
+ * в дне. Свёрнута по умолчанию — иначе список превращается в простыню,
  * а нужны эти поля не каждый день.
  */
 function planExtra(p, s, T){
@@ -1987,7 +1990,7 @@ function planExtra(p, s, T){
   const summary = marks.length ? marks.join(" · ") : "тонкая настройка";
 
   let h = `<button class="pi-more ${marks.length ? "has-rules" : ""}" data-act="planMore" data-id="${p.id}"
-        title="Подгруппы, спаренные занятия, трудность и запреты по позиции в дне">${open ? "свернуть" : esc(summary)}</button>`;
+        title="Подгруппы, спаренные занятия и запреты по позиции в дне">${open ? "свернуть" : esc(summary)}</button>`;
   if(!open) return h;
 
   const sub = p.subgroup || 0;
@@ -2511,7 +2514,7 @@ function comboUsageHint(kind, n){
 
 function comboOpen(input){
   if(combo && combo.input === input){ comboFill(); return; }
-  comboClose();
+  comboClose(true);
   const wrap = input.closest(".combo"); if(!wrap) return;
   const menu = document.createElement("div");
   menu.className = "combo-menu";
@@ -2520,16 +2523,55 @@ function comboOpen(input){
   wrap.classList.add("is-open");
   comboFill();
   comboPlace();
+
+  // Подкручиваем к выбранному пункту руками: scrollIntoView при нулевой высоте
+  // утащил бы за собой страницу.
   const cur = menu.querySelector(".is-current");
-  if(cur) cur.scrollIntoView({block:"nearest"});
+  const h = menu.getBoundingClientRect().height;
+  const want = cur ? Math.max(0, cur.offsetTop - h / 2 + cur.offsetHeight / 2) : 0;
+  menu.scrollTop = want;
+
+  if(!ANIM()) return;
+  menu.classList.add("is-anim");
+  menu.style.height = "0px";
+  menu.style.opacity = "0";
+  void menu.offsetHeight;                      // зафиксировать нулевую высоту как старт
+  menu.style.height = h + "px";
+  menu.style.opacity = "1";
+  if(want){
+    // высота едет от нуля и по дороге обрезает прокрутку — возвращаем её на место,
+    // пока список растёт, иначе в конце список дёрнется к выбранному пункту
+    const keep = () => {
+      if(!combo || combo.menu !== menu || !menu.classList.contains("is-anim")) return;
+      menu.scrollTop = want;
+      requestAnimationFrame(keep);
+    };
+    requestAnimationFrame(keep);
+  }
+  setTimeout(() => {
+    if(combo && combo.menu === menu){
+      menu.classList.remove("is-anim");
+      menu.style.height = "";                  // дальше высота снова по содержимому
+      menu.scrollTop = want;
+    }
+  }, ANIM());
 }
 
-function comboClose(){
+// instant — закрываемся, потому что тут же открываем соседний список:
+// плавно уходящий висел бы призраком поверх нового
+function comboClose(instant){
   if(!combo) return;
-  combo.wrap.classList.remove("is-open");
-  combo.menu.remove();
-  if(isTouch()) combo.input.readOnly = true;   // следующий тап снова только выбирает
-  combo = null;
+  const {wrap, menu, input} = combo;
+  wrap.classList.remove("is-open");
+  if(isTouch()) input.readOnly = true;         // следующий тап снова только выбирает
+  combo = null;                                // список ещё в DOM, но уже ничей
+  if(instant || !ANIM()){ menu.remove(); return; }
+  menu.classList.add("is-anim", "is-out");
+  menu.style.height = menu.getBoundingClientRect().height + "px";
+  void menu.offsetHeight;
+  menu.style.height = "0px";
+  menu.style.opacity = "0";
+  setTimeout(() => menu.remove(), 170);
 }
 
 function comboPlace(){
