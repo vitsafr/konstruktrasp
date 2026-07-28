@@ -138,6 +138,7 @@
   --accent:    #d2703f;
   --accent-in: #fff6ef;
   --ok:        #6f9a5e;
+  --ok-bg:     #eff5ea;
   --warn:      #c0492f;
   --warn-bg:   #fdeee9;
   --pin:       #b8862f;
@@ -595,6 +596,15 @@ table.grid td.tcell b{display:block; font-size:15px; color:var(--ink-2); font-we
 .cell.is-off::after{content:"—"; position:absolute; inset:0; display:grid; place-items:center; color:var(--muted); font-size:13px}
 td.tcell.is-off{opacity:.4}
 .cell.is-target{border-color:var(--accent); border-style:solid; background:#fff}
+/* Клетки, куда выбранная карточка встанет без накладок. Зелёным, а не
+   акцентным: акцент в интерфейсе значит «здесь сейчас идёт действие»,
+   а тут — подсказка, что место свободно. */
+.cell.can-take{border-color:var(--ok); border-style:solid; background:var(--ok-bg)}
+.cell.can-take::before{
+  content:""; position:absolute; inset:0; margin:auto;
+  width:7px; height:7px; border-radius:50%; background:var(--ok); opacity:.5;
+}
+.cell.can-take.is-hot::before{display:none}
 
 .card{
   position:absolute; inset:0;
@@ -641,6 +651,44 @@ table.grid-teacher{table-layout:fixed}
 .card .pin svg{width:13px; height:13px; display:block}
 .card:hover .pin, .card .pin.is-on{opacity:1}
 .card .pin.is-on{background:#fff2d4; color:var(--pin)}
+
+/* инспектор занятия: разбор выбранной карточки */
+.insp{border-top:1px solid var(--line); padding:13px 16px 15px; background:var(--surface)}
+.insp-head{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.insp-dot{width:11px; height:11px; border-radius:4px; flex:0 0 auto; border:1px solid rgba(0,0,0,.08)}
+.insp-head b{font-size:14.5px; font-weight:750}
+.insp-where{font-size:12.5px; color:var(--muted); font-weight:600}
+.insp-x{
+  margin-left:auto; flex:0 0 auto; width:26px; height:26px; padding:0;
+  border:none; background:transparent; border-radius:8px; color:var(--muted);
+  display:grid; place-items:center;
+  transition:background .18s var(--ease), color .18s var(--ease);
+}
+.insp-x:hover{background:var(--surface-2); color:var(--ink)}
+.insp-x svg{width:14px; height:14px}
+.insp-sub{margin:3px 0 0; font-size:12.5px; color:var(--ink-2)}
+
+.insp-why{margin:10px 0 0; padding:0; list-style:none; display:flex; flex-direction:column; gap:5px}
+.insp-why li{
+  font-size:12.5px; color:#7d2f1c; display:flex; gap:7px; align-items:center;
+  background:var(--warn-bg); border-radius:9px; padding:6px 9px;
+}
+.insp-why .c-ic{flex:0 0 auto; color:var(--warn); display:grid; place-items:center}
+.insp-why .c-ic svg{width:13px; height:13px; display:block}
+.insp-ok{margin:10px 0 0; font-size:12.5px; color:var(--ok); display:flex; align-items:center; gap:7px}
+.insp-ok .c-ic{display:grid; place-items:center}
+.insp-ok .c-ic svg{width:13px; height:13px; display:block}
+
+.insp-moves{margin-top:11px; display:flex; align-items:center; gap:6px; flex-wrap:wrap}
+.insp-lbl{font-size:12px; color:var(--muted); font-weight:600; margin-right:2px}
+.insp-cell{
+  border:1px solid var(--ok); background:var(--ok-bg); color:#4b6b3e;
+  border-radius:9px; padding:4px 9px; font-size:12px; font-weight:700;
+  transition:background .16s var(--ease), transform .16s var(--ease);
+}
+.insp-cell:hover{background:#e2eeda; transform:translateY(-1px)}
+.insp-more{font-size:12px; color:var(--muted)}
+.insp-act{margin-top:12px; display:flex; gap:7px; flex-wrap:wrap}
 
 /* банк нераспределённых */
 .bank{
@@ -987,6 +1035,8 @@ table.grid-teacher{table-layout:fixed}
 
     <div class="grid-wrap" id="gridWrap"></div>
 
+    <div id="inspector" class="no-print"></div>
+
     <div class="bank no-print">
       <div class="bank-h">
         <h3>Не расставлено</h3>
@@ -1290,7 +1340,8 @@ const ICON = {
   undo:    svg(`<path d="M3 8h11a6 6 0 0 1 0 12H8"/><path d="M7 4 3 8l4 4"/>`),
   redo:    svg(`<path d="M21 8H10a6 6 0 0 0 0 12h6"/><path d="M17 4l4 4-4 4"/>`),
   pencil:  svg(`<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="M15 6l3 3"/>`),
-  check:   svg(`<path d="M4 12.5 9.5 18 20 6.5"/>`)
+  check:   svg(`<path d="M4 12.5 9.5 18 20 6.5"/>`),
+  x:       svg(`<path d="M6 6l12 12M18 6 6 18"/>`)
 };
 
 /** Занятия разных подгрупп идут в одной клетке параллельно и не мешают друг другу */
@@ -1994,6 +2045,7 @@ function render(){
   $("#panelBody").scrollTop = scroll;
   renderChips();
   renderGrid();
+  renderInspector();
   renderBank();
   renderIssues();
   $("#orgTitle").value = state.title;
@@ -2385,6 +2437,10 @@ function renderGrid(){
     cellAt = (d, s) => at[d + "|" + s] || [];
   }
 
+  // выбрана карточка — подсвечиваем клетки, куда она встанет без накладок
+  const picked = isTeacher ? null : pickedPlacement();
+  const takeable = picked ? new Set(movesFor(picked).map(m => m.d + "|" + m.s)) : null;
+
   let h = isTeacher
     ? `<p class="grid-note">Обзор занятий ${esc(byId(state.teachers, ui.focus)?.name || "")} по дням. Менять расстановку — на вкладке «По группам».</p>`
     : "";
@@ -2399,7 +2455,8 @@ function renderGrid(){
       const here = cellAt(d, r);
       // в виде «по людям» клетки не редактируем перетаскиванием — только смотрим
       const drop = isTeacher ? "" : `data-d="${d}" data-s="${r}"`;
-      h += `<td><div class="cell ${off && !here.length ? "is-off" : ""}" ${drop}>${here.map(p => cardHTML(p, map, isTeacher)).join("")}</div></td>`;
+      const can = takeable && takeable.has(d + "|" + r) ? " can-take" : "";
+      h += `<td><div class="cell ${off && !here.length ? "is-off" : ""}${can}" ${drop}>${here.map(p => cardHTML(p, map, isTeacher)).join("")}</div></td>`;
     }
     h += `</tr>`;
   }
@@ -2495,6 +2552,186 @@ function renderBank(){
 }
 
 /* ---------- Конфликты ---------- */
+/* ============================================================
+   ИНСПЕКТОР ЗАНЯТИЯ
+   Разбор выбранной карточки: что это, с чем спорит и куда её можно
+   переставить. Свободные клетки считаются той же функцией isFree, что и
+   у автосборки, — иначе инспектор со временем начал бы обещать места,
+   которых сборщик не видит.
+   ============================================================ */
+
+/** Выбранная карточка — но только если она с той доски, что сейчас открыта:
+    смена группы выделение снимает, а вот программная правка ui.focus могла бы
+    оставить инспектор от чужого расписания */
+function pickedPlacement(){
+  if(ui.view !== "group" || !(ui.picked || "").startsWith("placement:")) return null;
+  const p = state.placements.find(x => x.id === ui.picked.split(":")[1]);
+  if(!p) return null;
+  const pi = planById(p.planId);
+  return (pi && pi.groupId === ui.focus) ? p : null;
+}
+
+/** Занятость всей сетки, кроме одной карточки: как будто её сняли с доски */
+function ctxWithout(exceptId){
+  const spans = {};
+  state.groups.forEach(g => spans[g.id] = slotSpans(g));
+  const ctx = {busyT:new Map(), busyR:new Map(), busyG:new Map(),
+               spanAt:(pi, d, s) => (spans[pi.groupId] || [])[s] || null};
+  state.placements.forEach(x => {
+    if(x.id === exceptId) return;
+    const q = planById(x.planId); if(!q) return;
+    occupy(ctx, q, x.day, x.slot, true, spanOf(x));
+  });
+  return ctx;
+}
+
+/** Клетки, куда занятие встанет без единой накладки */
+function movesFor(p){
+  const pi = planById(p.planId); if(!pi) return [];
+  const ctx = ctxWithout(p.id);
+  const D = dayCount(), S = slotCount();
+  const out = [];
+  for(let d=0; d<D; d++)
+    for(let s=0; s<S; s++){
+      if(d === p.day && s === p.slot) continue;
+      if(isFree(ctx, pi, d, s)) out.push({d, s});
+    }
+  return out;
+}
+
+/** Сколько окон будет у группы, если увести карточку в клетку (d,s) */
+function gapsIfMoved(p, d, s){
+  const pi = planById(p.planId); if(!pi) return 0;
+  const byDay = {};
+  state.placements.forEach(x => {
+    const q = planById(x.planId); if(!q || q.groupId !== pi.groupId) return;
+    const dd = x.id === p.id ? d : x.day, ss = x.id === p.id ? s : x.slot;
+    (byDay[dd] ||= []).push(ss);
+  });
+  let g = 0;
+  Object.values(byDay).forEach(a => { g += (Math.max(...a) - Math.min(...a) + 1) - a.length; });
+  return g;
+}
+
+/** Клетки от лучшей к худшей: сначала те, что не плодят окна, потом ближние */
+function rankMoves(p, moves){
+  return moves
+    .map(m => ({...m, окна:gapsIfMoved(p, m.d, m.s), даль:Math.abs(m.d - p.day) * 10 + Math.abs(m.s - p.slot)}))
+    .sort((a, b) => a.окна - b.окна || a.даль - b.даль);
+}
+
+/** Почему именно эта карточка спорит — с указанием второй стороны */
+function explainPlacement(p){
+  const pi = planById(p.planId); if(!pi) return [];
+  const t = teacherOf(pi), r = roomOf(pi), subj = subjOf(pi), g = groupOf(pi);
+  const sp = spanOf(p), out = [];
+  const say = (ic, text) => { if(!out.some(x => x.text === text)) out.push({ic, text}); };
+
+  state.placements.forEach(x => {
+    if(x.id === p.id || x.day !== p.day) return;
+    const q = planById(x.planId); if(!q) return;
+    const sx = spanOf(x);
+    const clash = (sp && sx) ? overlap(sp, sx) : x.slot === p.slot;
+    if(!clash) return;
+    // Названия предметов и помещений пользователь пишет сам, склонять их
+    // нечем — поэтому имя выносим вперёд через тире, а само название
+    // остаётся в именительном падеже.
+    const что = subjOf(q)?.name || "занятие";
+    const у = groupOf(q)?.name || "?";
+    if(pi.teacherId && pi.teacherId === q.teacherId)
+      say("person", `${t.name} — в это же время ещё одно занятие: ${что} у ${у}`);
+    if(pi.roomId && pi.roomId === q.roomId)
+      say("door", `${r.name} — в это же время здесь ${что} у ${у}`);
+    if(q.groupId === pi.groupId && sameCell(pi, q) && x.slot === p.slot)
+      say("warn", `В этой же клетке уже стоит ${что}`);
+  });
+
+  if(pi.teacherId && t && !worksAt(t, p.day, sp))
+    say("clock", `${t.name} по этим дням и часам не работает`);
+  if(ruleBlocks(pi, p.slot))
+    say("ban", subj && subj.notFirst && p.slot === 0
+      ? `${subj.name} запрещено ставить первым занятием`
+      : `${subj.name} запрещено ставить последним занятием`);
+  if(g && !slotAvailable(g, p.slot))
+    say("warn", `У ${g.name} нет занятия под этим номером`);
+  return out;
+}
+
+/** Свернуть и убрать: карточку сняли или сняли выделение */
+function inspectorHide(box){
+  const w = box.querySelector(".exp.is-open");
+  box.dataset.pid = "";
+  if(!w || !ANIM()){ box.innerHTML = ""; return; }
+  w.classList.remove("is-open");
+  setTimeout(() => { if(!box.dataset.pid) box.innerHTML = ""; }, ANIM());
+}
+
+function renderInspector(){
+  const box = $("#inspector");
+  const p = pickedPlacement();          // в виде «по людям» карточки только смотрят
+  if(!p){ inspectorHide(box); return; }
+  const pi = planById(p.planId);
+  if(!pi){ inspectorHide(box); return; }
+  const тотЖе = box.dataset.pid === p.id;
+  box.dataset.pid = p.id;
+
+  const T = terms();
+  const s = subjOf(pi), t = teacherOf(pi), r = roomOf(pi), g = groupOf(pi);
+  const tm = timeOf(p);
+  const где = DAY_NAMES[p.day] + (tm ? ", " + tm.start + "–" + tm.end : ", " + (p.slot+1) + "-" + T.slotOrd);
+  const why = explainPlacement(p);
+  const moves = movesFor(p);
+  // показываем шесть лучших, но перечисляем их по дням — так глазу привычнее
+  const ranked = rankMoves(p, moves);
+  const top = ranked.slice(0, 6).sort((a, b) => a.d - b.d || a.s - b.s);
+
+  const строка = (ic, text) => `<li><span class="c-ic">${ICON[ic] || ICON.warn}</span>${esc(text)}</li>`;
+
+  const сразу = тотЖе || !ANIM();
+  let h = `<div class="exp ${сразу ? "is-open" : ""}"><div class="exp-clip"><div class="insp">
+    <div class="insp-head">
+      <span class="insp-dot" style="background:${s ? s.color : "#b09b86"}"></span>
+      <b>${esc(s ? s.name : "—")}</b>
+      <span class="insp-where">${esc(g ? g.name : "")} · ${esc(где)}</span>
+      <button class="insp-x" data-act="inspClose" title="Снять выделение">${ICON.x || "✕"}</button>
+    </div>
+    <p class="insp-sub">${esc([t && t.name, r && r.name].filter(Boolean).join(" · ") || "педагог и " + T.roomGen + " не указаны")}</p>`;
+
+  if(why.length)
+    h += `<ul class="insp-why">${why.map(x => строка(x.ic, x.text)).join("")}</ul>`;
+  else
+    h += `<p class="insp-ok"><span class="c-ic">${ICON.check}</span>Стоит без накладок</p>`;
+
+  h += `<div class="insp-moves">
+    <span class="insp-lbl">${moves.length
+      ? `Свободно ${moves.length} ${plural(moves.length, "клетка", "клетки", "клеток")} — они подсвечены в сетке`
+      : "Свободных клеток без накладок нет"}</span>
+    ${top.map(m => `<button class="insp-cell" data-act="inspMove" data-d="${m.d}" data-s="${m.s}"
+        title="Перенести на ${esc(DAY_NAMES[m.d])}, ${m.s+1}-${esc(T.slotOrd)}">${esc(DAY_SHORT[m.d])} ${m.s+1}</button>`).join("")}
+    ${moves.length > top.length ? `<span class="insp-more">и ещё ${moves.length - top.length}</span>` : ""}
+  </div>`;
+
+  const auto = why.length && ranked.length ? ranked[0] : null;
+  h += `<div class="insp-act">
+    ${auto ? `<button class="btn btn-sm btn-primary" data-act="inspMove" data-d="${auto.d}" data-s="${auto.s}"
+        title="Перенести на ${esc(DAY_NAMES[auto.d])}, ${auto.s+1}-${esc(T.slotOrd)} — там нет накладок и не появится окно">Убрать накладку</button>` : ""}
+    <button class="btn btn-sm" data-act="inspPin">${p.locked ? "Открепить" : "Закрепить"}</button>
+    <button class="btn btn-sm" data-act="inspDrop" title="Снять карточку с сетки — она вернётся в «Не расставлено»">Снять с сетки</button>
+  </div></div></div></div>`;
+
+  box.innerHTML = h;
+  if(!сразу) requestAnimationFrame(() => {
+    const w = box.querySelector(".exp");
+    if(!w || box.dataset.pid !== p.id) return;
+    w.classList.add("is-open");
+    // на узком экране разбор появляется под сеткой, за нижним краем: подводим
+    // к нему, но не дальше, чем нужно — нажатая карточка остаётся на виду
+    const r = box.getBoundingClientRect();
+    const надо = r.top + 240 - innerHeight + 16;
+    if(надо > 0) window.scrollBy({top:надо, behavior: ANIM() ? "smooth" : "auto"});
+  });
+}
+
 function renderIssues(){
   const {list} = computeConflicts();
   const box = $("#issues");
@@ -2885,6 +3122,24 @@ function bindGrid(){
     });
   });
 }
+
+/* Инспектор перерисовывается целиком, поэтому слушатель один и на контейнере */
+$("#inspector").addEventListener("click", e => {
+  const b = e.target.closest("[data-act]"); if(!b) return;
+  const p = pickedPlacement(); if(!p) return;
+  const act = b.dataset.act;
+  if(act === "inspClose"){ ui.picked = null; render(); }
+  else if(act === "inspMove"){
+    movePlacement(p.id, +b.dataset.d, +b.dataset.s);
+    // Оставляем карточку выбранной: инспектор тут же покажет, что стало.
+    // pid возвращаем руками — иначе он схлопнется и поедет раскрываться заново.
+    ui.picked = "placement:" + p.id;
+    e.currentTarget.dataset.pid = p.id;
+    render();
+  }
+  else if(act === "inspPin"){ snapshot(); p.locked = !p.locked; commit(); }
+  else if(act === "inspDrop") removePlacement(p.id);
+});
 
 /* контейнер банка живёт всё время — вешаем на него слушателей один раз */
 (function initBankDropZone(){
