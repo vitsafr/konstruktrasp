@@ -1712,6 +1712,8 @@ function autoBuild(){
     const subjSlot = new Map();  // groupId|subjectId|slot -> кол-во
     const groupDay = new Map();  // groupId|day -> кол-во
     const teachDay = new Map();  // teacherId|day -> кол-во
+    // края занятого дня группы: по ним окна считаются за O(1), без перебора
+    const dayMin = new Map(), dayMax = new Map();
     const out = [];
 
     const mark = (pi, d, s, span) => {
@@ -1722,10 +1724,23 @@ function autoBuild(){
       subjSlot.set(a2, (subjSlot.get(a2)||0) + 1);
       const b = pi.groupId + "|" + d;
       groupDay.set(b, (groupDay.get(b)||0) + 1);
+      dayMin.set(b, Math.min(dayMin.has(b) ? dayMin.get(b) : s, s));
+      dayMax.set(b, Math.max(dayMax.has(b) ? dayMax.get(b) : s, s));
       if(pi.teacherId){
         const c = pi.teacherId + "|" + d;
         teachDay.set(c, (teachDay.get(c)||0) + 1);
       }
+    };
+
+    /** На сколько вырастет число окон у группы, если занять (d, s..s+size-1) */
+    const gapDelta = (gid, d, s, size) => {
+      const k = gid + "|" + d;
+      const n = groupDay.get(k) || 0;
+      if(!n) return 0;                       // первое занятие дня окон не создаёт
+      const mn0 = dayMin.get(k), mx0 = dayMax.get(k);
+      const было = (mx0 - mn0 + 1) - n;
+      const mn = Math.min(mn0, s), mx = Math.max(mx0, s + size - 1);
+      return ((mx - mn + 1) - (n + size)) - было;
     };
 
     // закреплённые занимают места первыми — со своим временем, если оно у них задано
@@ -1766,15 +1781,11 @@ function autoBuild(){
           const col = subjSlot.get(pi.groupId + "|" + pi.subjectId + "|s" + s) || 0;
           cost += col * 2.6;                   // и не столбиком в один и тот же час всю неделю
           if(bi && bi.block > 0) cost -= 1.5;  // блок после сна заполняем охотнее, чем оставляем пустым
-          if(gd > 0){                          // избегаем окон внутри дня
-            const slots = out.filter(p => {
-              const q = planById(p.planId);
-              return q && q.groupId === pi.groupId && p.day === d;
-            }).map(p => p.slot);
-            const near = slots.some(x => Math.abs(x - s) === 1);
-            // первый слот блока (после сна) не примыкает к утренним — это не окно
-            if(!near && !(bi && bi.pos === 0)) cost += 3.5;
-          }
+          // Окна считаем точно — на сколько вырастет дыра в дне группы, — а не
+          // «примыкает / не примыкает». Прежняя проверка перебирала весь список
+          // на каждую клетку и была самым дорогим местом сборки.
+          const dg = gapDelta(pi.groupId, d, s, size);
+          if(dg > 0) cost += 9 + dg * 5;       // окно дороже любого другого предпочтения
           cost += rnd() * 1.4;                 // разброс между попытками
 
           if(cost < bestCost){ bestCost = cost; bestCell = {d,s}; }
@@ -1805,6 +1816,20 @@ function autoBuild(){
               gaps: countGaps(fixed.placements), score: 0};
     }
   }
+
+  // Добивка окон поверх победившей попытки. Внутри попыток гонять её дорого и
+  // незачем: переносы ничего не размещают заново, только уплотняют готовое.
+  if(countGaps(best.placements)){
+    const ctx = ctxOf(best.placements);
+    for(let round=0; round<3; round++){
+      const было = countGaps(best.placements);
+      relocatePass(best.placements, ctx, D, S);
+      compact(best.placements, ctx);
+      swapPass(best.placements, ctx);
+      if(countGaps(best.placements) >= было) break;
+    }
+    best.gaps = countGaps(best.placements);
+  }
   return best;
 }
 
@@ -1821,7 +1846,26 @@ function repairFill(best, D, S, spanAt){
 
   for(let attempt=0; attempt<6 && (!result || result.unplaced.length); attempt++){
     const rnd = mulberry32(attempt * 2657 + 101);
-    const placed = best.placements.map(p => ({key: uid(), planId: p.planId, day: p.day, slot: p.slot, locked: p.locked}));
+    // Разложено по дням, а не одним списком: collide зовётся на каждую клетку
+    // в каждой итерации, и перебор всего расписания внутри него был тем самым
+    // местом, где сборка большой школы вставала на десять секунд.
+    const byDay = Array.from({length:D}, () => []);
+    const cntGD = new Map(), cntTD = new Map();   // занятость группы и педагога по дням
+    const bump = (p, k) => {
+      const q = planById(p.planId); if(!q) return;
+      const a = q.groupId + "|" + p.day;
+      cntGD.set(a, (cntGD.get(a) || 0) + k);
+      if(q.teacherId){
+        const b = q.teacherId + "|" + p.day;
+        cntTD.set(b, (cntTD.get(b) || 0) + k);
+      }
+    };
+    const addP = p => { byDay[p.day].push(p); bump(p, 1); };
+    const delP = p => { const a = byDay[p.day], i = a.indexOf(p); if(i >= 0) a.splice(i, 1); bump(p, -1); };
+    best.placements.forEach(p => {
+      if(p.day < 0 || p.day >= D) return;
+      addP({key: uid(), planId: p.planId, day: p.day, slot: p.slot, locked: p.locked});
+    });
     const queue = best.unplaced.slice();
     const failed = [];                          // те, кому места не нашлось совсем
     const tabu = new Map(); let tick = 0;
@@ -1837,8 +1881,7 @@ function repairFill(best, D, S, spanAt){
       const subj = subjOf(pi);
       if(subj && subj.notFirst && s === 0) return null;
       if(subj && subj.notLast && s === lastSlotOf(g)) return null;
-      for(const p of placed){
-        if(p.day !== d) continue;
+      for(const p of byDay[d]){
         const q = planById(p.planId); if(!q) continue;
         // разные подгруппы делят клетку без конфликта
         if(q.groupId === pi.groupId && p.slot === s && sameCell(q, pi)){ if(p.locked) return null; hits.push(p); continue; }
@@ -1857,8 +1900,17 @@ function repairFill(best, D, S, spanAt){
       let cell = null, bestCost = Infinity, evict = null;
 
       for(let d=0; d<D; d++){
-        const gd = placed.filter(p => { const q = planById(p.planId); return q && q.groupId === pi.groupId && p.day === d; }).length;
-        const td = pi.teacherId ? placed.filter(p => { const q = planById(p.planId); return q && q.teacherId === pi.teacherId && p.day === d; }).length : 0;
+        const gd = cntGD.get(pi.groupId + "|" + d) || 0;
+        const td = pi.teacherId ? (cntTD.get(pi.teacherId + "|" + d) || 0) : 0;
+        // края занятого дня группы: по ним видно, оставит ли клетка дыру
+        let mn = Infinity, mx = -Infinity;
+        for(const p of byDay[d]){
+          const q = planById(p.planId);
+          if(q && q.groupId === pi.groupId){
+            if(p.slot < mn) mn = p.slot;
+            if(p.slot > mx) mx = p.slot;
+          }
+        }
         for(let s=0; s<S; s++){
           const hits = collide(pi, d, s);
           if(hits === null) continue;
@@ -1867,18 +1919,26 @@ function repairFill(best, D, S, spanAt){
           if(hits.length === 0){                       // штраф за превышение дневной нормы только на пустой клетке
             if(gd >= gLimit) cost += 4;
             if(pi.teacherId && td >= tLimit) cost += 4;
+            // Доразмещение важнее окон, поэтому сравниваем только свободные
+            // клетки между собой: вытеснять кого-то ради ровного дня не станем,
+            // а вот из двух пустых выберем ту, что не рвёт день.
+            if(gd){
+              const было = (mx - mn + 1) - gd;
+              const dg = ((Math.max(mx, s) - Math.min(mn, s) + 1) - (gd + 1)) - было;
+              if(dg > 0) cost += 1.5 + dg;
+            }
           }
           cost += rnd() * 0.6;
           if(cost < bestCost){ bestCost = cost; cell = {d, s}; evict = hits; }
         }
       }
       if(!cell){ failed.push(pi); continue; }   // места нет — не теряем, вернём в «Не расставлено»
-      evict.forEach(h => { placed.splice(placed.indexOf(h), 1); queue.push(planById(h.planId)); });
+      evict.forEach(h => { delP(h); queue.push(planById(h.planId)); });
       const np = {key: uid(), planId: pi.id, day: cell.d, slot: cell.s, locked: false};
-      placed.push(np); tabu.set(np.key, tick);
+      addP(np); tabu.set(np.key, tick);
     }
 
-    const cur = {placements: placed.map(p => ({id: uid(), planId: p.planId, day: p.day, slot: p.slot, locked: p.locked})),
+    const cur = {placements: byDay.flat().map(p => ({id: uid(), planId: p.planId, day: p.day, slot: p.slot, locked: p.locked})),
                  unplaced: queue.concat(failed)};
     if(!result || cur.unplaced.length < result.unplaced.length) result = cur;
   }
@@ -1975,6 +2035,84 @@ function compact(list, ctx){
         break;
       }
     }
+    if(!moved) break;
+  }
+}
+
+/** Окна внутри одной группы: только её собственные карточки на это влияют */
+function gapsIn(items){
+  const byDay = {};
+  items.forEach(p => (byDay[p.day] ||= []).push(p.slot));
+  let g = 0;
+  Object.values(byDay).forEach(a => { g += (Math.max(...a) - Math.min(...a) + 1) - a.length; });
+  return g;
+}
+
+/**
+ * Перенос одиночной карточки — ход, которого не хватало.
+ * compact двигает занятие только вверх внутри своего дня, swapPass меняет
+ * местами две уже стоящие карточки. Дырку посреди дня не закрывает ни то,
+ * ни другое: в неё нужно привести занятие из другого дня недели, а его место
+ * при этом схлопнется в хвост. Метод из тех же методичек, что и остальное, —
+ * локальный поиск по одному перемещению, но уже поверх готового расписания.
+ */
+function relocatePass(list, ctx, D, S){
+  const byGroup = new Map();
+  list.forEach(p => {
+    const pi = planById(p.planId); if(!pi) return;
+    if(!byGroup.has(pi.groupId)) byGroup.set(pi.groupId, []);
+    byGroup.get(pi.groupId).push(p);
+  });
+
+  for(let pass=0; pass<4; pass++){
+    let moved = false;
+
+    // нагрузка педагогов по дням: пересчитываем раз за проход, дальше правим точечно
+    const tDay = new Map();
+    list.forEach(x => {
+      const q = planById(x.planId); if(!q || !q.teacherId) return;
+      const k = q.teacherId + "|" + x.day;
+      tDay.set(k, (tDay.get(k) || 0) + 1);
+    });
+
+    byGroup.forEach((items, gid) => {
+      if(!gapsIn(items)) return;
+      const g = byId(state.groups, gid);
+      const gLimit = (g && g.maxPerDay) ? g.maxPerDay : S;
+
+      for(const p of items){
+        if(p.locked) continue;
+        const pi = planById(p.planId); if(!pi || pi.paired) continue;   // пару не разрываем
+        const t = teacherOf(pi);
+        const tLimit = (t && t.maxPerDay) ? t.maxPerDay : S;
+        const od = p.day, os = p.slot;
+        let было = gapsIn(items), цель = null;
+
+        occupy(ctx, pi, od, os, false);
+        if(pi.teacherId) tDay.set(pi.teacherId + "|" + od, (tDay.get(pi.teacherId + "|" + od) || 1) - 1);
+
+        for(let d=0; d<D && было; d++){
+          if(items.filter(x => x !== p && x.day === d).length + 1 > gLimit) continue;
+          if(pi.teacherId && (tDay.get(pi.teacherId + "|" + d) || 0) + 1 > tLimit) continue;
+          // тот же предмет дважды за день — закрыть окно такой ценой не стоит
+          if(d !== od && items.some(x => x !== p && x.day === d && planById(x.planId)?.subjectId === pi.subjectId)) continue;
+          for(let s=0; s<S; s++){
+            if(d === od && s === os) continue;
+            if(!isFree(ctx, pi, d, s)) continue;
+            p.day = d; p.slot = s;
+            const стало = gapsIn(items);
+            if(стало < было){ было = стало; цель = {d, s}; }
+          }
+        }
+
+        p.day = цель ? цель.d : od;
+        p.slot = цель ? цель.s : os;
+        occupy(ctx, pi, p.day, p.slot, true);
+        if(pi.teacherId) tDay.set(pi.teacherId + "|" + p.day, (tDay.get(pi.teacherId + "|" + p.day) || 0) + 1);
+        if(цель) moved = true;
+      }
+    });
+
     if(!moved) break;
   }
 }
@@ -2571,18 +2709,22 @@ function pickedPlacement(){
   return (pi && pi.groupId === ui.focus) ? p : null;
 }
 
-/** Занятость всей сетки, кроме одной карточки: как будто её сняли с доски */
-function ctxWithout(exceptId){
+/** Карта занятости по готовому списку карточек */
+function ctxOf(items){
   const spans = {};
   state.groups.forEach(g => spans[g.id] = slotSpans(g));
   const ctx = {busyT:new Map(), busyR:new Map(), busyG:new Map(),
                spanAt:(pi, d, s) => (spans[pi.groupId] || [])[s] || null};
-  state.placements.forEach(x => {
-    if(x.id === exceptId) return;
+  items.forEach(x => {
     const q = planById(x.planId); if(!q) return;
     occupy(ctx, q, x.day, x.slot, true, spanOf(x));
   });
   return ctx;
+}
+
+/** Занятость всей сетки, кроме одной карточки: как будто её сняли с доски */
+function ctxWithout(exceptId){
+  return ctxOf(state.placements.filter(x => x.id !== exceptId));
 }
 
 /** Клетки, куда занятие встанет без единой накладки */
