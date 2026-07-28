@@ -1527,6 +1527,25 @@ function nextSlotTime(g){
   return {start: fmtMin(start), end: fmtMin(start + len)};
 }
 
+/**
+ * Свободен ли для плана pi ещё не существующий слот дня d со временем span.
+ * Обычный isFree тут не годится: слота у группы нет, и он бы сразу ответил
+ * «занято». А подсветить клетку зелёным, когда педагог в это время занят
+ * в другой группе, — значит соврать: зелёный везде означает «без накладок».
+ */
+function newSlotFree(pi, d, span){
+  if(!pi || !span) return false;
+  const subj = subjOf(pi);
+  if(subj && subj.notLast) return false;          // новое занятие станет последним в дне
+  if(pi.teacherId && !worksAt(teacherOf(pi), d, span)) return false;
+  return !state.placements.some(x => {
+    if(x.day !== d) return false;
+    const q = planById(x.planId); if(!q) return false;
+    if(!overlap(span, spanOf(x))) return false;
+    return (pi.teacherId && q.teacherId === pi.teacherId) || (pi.roomId && q.roomId === pi.roomId);
+  });
+}
+
 /** Дорисовать группе следующее занятие. Возвращает его номер или null */
 function extendGroup(g){
   const t = nextSlotTime(g); if(!t) return null;
@@ -2651,10 +2670,19 @@ function renderGrid(){
   // Кладём сюда — занятие достроится с посчитанным временем.
   const добавка = !isTeacher && focusGroup ? nextSlotTime(focusGroup) : null;
   if(добавка){
+    // что именно сейчас несут: карточку из сетки или строку нагрузки из банка
+    const [вид, ид] = (ui.picked || "").split(":");
+    const несём = вид === "placement"
+      ? planById((state.placements.find(x => x.id === ид) || {}).planId)
+      : вид === "plan" ? planById(ид) : null;
+    const span = [toMin(добавка.start), toMin(добавка.end)];
+
     h += `<tr class="row-add"><td class="tcell is-add"><b>${rows+1}</b>${добавка.start}–${добавка.end}</td>`;
-    for(let d=0; d<D; d++)
-      h += `<td><div class="cell cell-add ${ui.picked ? "can-take" : ""}" data-d="${d}" data-s="${rows}" data-add="1"
+    for(let d=0; d<D; d++){
+      const свободно = несём ? newSlotFree(несём, d, span) : false;
+      h += `<td><div class="cell cell-add ${свободно ? "can-take" : ""}" data-d="${d}" data-s="${rows}" data-add="1"
               title="Перенести занятие сюда — у ${esc(focusGroup.name)} появится ${rows+1}-${esc(terms().slotOrd)} в ${добавка.start}"></div></td>`;
+    }
     h += `</tr>`;
   }
 
@@ -3238,6 +3266,19 @@ $("#panelBody").addEventListener("keydown", e => {
 /* ============================================================
    ПЕРЕТАСКИВАНИЕ (мышь) + ТАП-ТАП (телефон)
    ============================================================ */
+/**
+ * Руками поставить можно куда угодно — иногда это и нужно. Но уходить
+ * молча, оставив накладку, нельзя: счётчик наверху легко не заметить,
+ * а значок на карточке мелкий. Поэтому говорим прямо, с именами.
+ */
+function warnConflict(...cards){
+  for(const p of cards){
+    if(!p) continue;
+    const why = explainPlacement(p);
+    if(why.length){ toast("Накладка: " + why[0].text); return; }
+  }
+}
+
 function movePlacement(pid, d, s){
   const p = state.placements.find(x => x.id === pid); if(!p) return;
   const pi = planById(p.planId); if(!pi) return;
@@ -3258,14 +3299,17 @@ function movePlacement(pid, d, s){
   p.day = d; p.slot = s;
   ui.picked = null;
   commit();
+  warnConflict(p, occupant);
 }
 function createPlacement(planId, d, s){
   const pi = planById(planId); if(!pi) return;
   if(placedHours(planId) >= (pi.hours|0)) return;
   snapshot();
-  state.placements.push({id:uid(), planId, day:d, slot:s, locked:false});
+  const np = {id:uid(), planId, day:d, slot:s, locked:false};
+  state.placements.push(np);
   ui.picked = null;
   commit();
+  warnConflict(np);
 }
 function removePlacement(pid){
   snapshot();
