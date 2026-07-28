@@ -606,6 +606,20 @@ td.tcell.is-off{opacity:.4}
 }
 .cell.can-take.is-hot::before{display:none}
 
+/* Строка-заготовка: занятия у группы кончились, но день ещё нет.
+   Приглушена сильнее пустых клеток — это не место в расписании,
+   а предложение его создать. */
+.row-add .tcell.is-add{opacity:.5}
+.row-add .tcell.is-add b{color:var(--muted)}
+.cell-add{border-style:dashed; border-color:var(--line); background:transparent; opacity:.55}
+.cell-add::after{
+  content:"+"; position:absolute; inset:0; display:grid; place-items:center;
+  color:var(--muted); font-size:17px; font-weight:600;
+}
+.cell-add.can-take{opacity:1; border-color:var(--ok); background:var(--ok-bg)}
+.cell-add.can-take::after{color:var(--ok)}
+.cell-add.can-take::before{display:none}
+
 .card{
   position:absolute; inset:0;
   border-radius:var(--r-m); padding:7px 9px;
@@ -1485,6 +1499,39 @@ function slotTimes(group){
     out.push(own && own.start ? {start:own.start, end:own.end || own.start} : base[i]);
   }
   return out;
+}
+
+/**
+ * Группа держит собственный список занятий — и он может кончиться раньше, чем
+ * место в дне. Тогда переносить занятие некуда: строки просто нет. Считаем,
+ * во сколько шло бы следующее, чтобы сетка могла предложить его дорисовать.
+ */
+function nextSlotTime(g){
+  const sl = (g && g.slots) || [];
+  if(!sl.length || sl.length >= slotCount()) return null;
+  const last = sl[sl.length - 1];
+  const a = last ? toMin(last.start) : null;
+  if(a == null) return null;
+  const b = toMin(last.end);
+  const len = Math.max(5, (b != null ? b : a + (state.settings.lessonMin | 0)) - a);
+  // перерыв берём такой же, как между двумя последними занятиями, — но только
+  // если он похож на перемену: между утром и временем после сна бывает и шесть часов
+  let gap = Math.max(0, state.settings.breakMin | 0);
+  const prev = sl[sl.length - 2];
+  if(prev && toMin(prev.end) != null){
+    const g2 = a - toMin(prev.end);
+    if(g2 > 0 && g2 <= 60) gap = g2;
+  }
+  const start = (b != null ? b : a + len) + gap;
+  if(start + len > 24 * 60 - 1) return null;
+  return {start: fmtMin(start), end: fmtMin(start + len)};
+}
+
+/** Дорисовать группе следующее занятие. Возвращает его номер или null */
+function extendGroup(g){
+  const t = nextSlotTime(g); if(!t) return null;
+  g.slots.push({start: t.start, end: t.end});
+  return g.slots.length - 1;
 }
 
 /** Время карточки: своё, если перенесено из старого файла, иначе по сетке группы */
@@ -2598,6 +2645,19 @@ function renderGrid(){
     }
     h += `</tr>`;
   }
+
+  // Строка-заготовка: у группы со своими звонками список занятий может
+  // кончиться раньше, чем день, и переносить карточку становится некуда.
+  // Кладём сюда — занятие достроится с посчитанным временем.
+  const добавка = !isTeacher && focusGroup ? nextSlotTime(focusGroup) : null;
+  if(добавка){
+    h += `<tr class="row-add"><td class="tcell is-add"><b>${rows+1}</b>${добавка.start}–${добавка.end}</td>`;
+    for(let d=0; d<D; d++)
+      h += `<td><div class="cell cell-add ${ui.picked ? "can-take" : ""}" data-d="${d}" data-s="${rows}" data-add="1"
+              title="Перенести занятие сюда — у ${esc(focusGroup.name)} появится ${rows+1}-${esc(terms().slotOrd)} в ${добавка.start}"></div></td>`;
+    h += `</tr>`;
+  }
+
   h += `</tbody></table>`;
   $("#gridWrap").innerHTML = h;
   if(!isTeacher) bindGrid();
@@ -2844,10 +2904,17 @@ function renderInspector(){
   else
     h += `<p class="insp-ok"><span class="c-ic">${ICON.check}</span>Стоит без накладок</p>`;
 
+  // Занятия у группы могут кончиться раньше, чем день: тогда единственное
+  // свободное место — строка-заготовка под сеткой, и о ней надо сказать.
+  const ещё = nextSlotTime(g);
+  const кудаТекст = moves.length
+    ? `Свободно ${moves.length} ${plural(moves.length, "клетка", "клетки", "клеток")} — они подсвечены в сетке`
+    : ещё
+      ? `Свободных клеток нет, но занятие можно перенести в строку под сеткой — у ${T.groupGen} появится ${(g.slots||[]).length + 1}-${T.slotOrd} в ${ещё.start}`
+      : "Свободных клеток без накладок нет";
+
   h += `<div class="insp-moves">
-    <span class="insp-lbl">${moves.length
-      ? `Свободно ${moves.length} ${plural(moves.length, "клетка", "клетки", "клеток")} — они подсвечены в сетке`
-      : "Свободных клеток без накладок нет"}</span>
+    <span class="insp-lbl">${esc(кудаТекст)}</span>
     ${top.map(m => `<button class="insp-cell" data-act="inspMove" data-d="${m.d}" data-s="${m.s}"
         title="Перенести на ${esc(DAY_NAMES[m.d])}, ${m.s+1}-${esc(T.slotOrd)}">${esc(DAY_SHORT[m.d])} ${m.s+1}</button>`).join("")}
     ${moves.length > top.length ? `<span class="insp-more">и ещё ${moves.length - top.length}</span>` : ""}
@@ -3208,6 +3275,21 @@ function removePlacement(pid){
 }
 
 function bindGrid(){
+  // Клетка из строки-заготовки: сперва достраиваем группе занятие, иначе
+  // карточка встанет в номер, которого у группы нет, и повиснет накладкой.
+  // Достройка и перенос — одно действие, поэтому точка отката общая.
+  const drop = (cell, fn) => {
+    if(!cell.dataset.add){ fn(); return; }
+    const g = currentGroup();
+    snapshot();
+    if(!g || extendGroup(g) == null){
+      toast(`Больше ${terms().slotGen} в день не поместится — увеличь их число в настройках`);
+      return;
+    }
+    snapHold = true;
+    try{ fn(); } finally { snapHold = false; }
+  };
+
   document.querySelectorAll(".cell").forEach(cell => {
     cell.addEventListener("dragover", e => { e.preventDefault(); cell.classList.add("is-hot"); });
     cell.addEventListener("dragleave", () => cell.classList.remove("is-hot"));
@@ -3217,16 +3299,20 @@ function bindGrid(){
       const raw = e.dataTransfer.getData("text/plain");
       if(!raw) return;
       const [kind, id] = raw.split(":");
-      if(kind === "placement") movePlacement(id, d, s);
-      else if(kind === "plan") createPlacement(id, d, s);
+      drop(cell, () => {
+        if(kind === "placement") movePlacement(id, d, s);
+        else if(kind === "plan") createPlacement(id, d, s);
+      });
     });
     cell.addEventListener("click", e => {
       if(e.target.closest(".card")) return;
       if(!ui.picked) return;
       const d = +cell.dataset.d, s = +cell.dataset.s;
       const [kind, id] = ui.picked.split(":");
-      if(kind === "placement") movePlacement(id, d, s);
-      else createPlacement(id, d, s);
+      drop(cell, () => {
+        if(kind === "placement") movePlacement(id, d, s);
+        else createPlacement(id, d, s);
+      });
     });
   });
 
@@ -3752,7 +3838,11 @@ $("#orgTitle").addEventListener("input", e => { state.title = e.target.value; sa
 const HISTORY_MAX = 40;
 let past = [], future = [];
 
+// Пока поднят, вложенные snapshot() молчат: составное действие должно
+// откатываться одним нажатием «отменить», а не по частям.
+let snapHold = false;
 function snapshot(){
+  if(snapHold) return;
   try{
     past.push(JSON.stringify(state));
     if(past.length > HISTORY_MAX) past.shift();
