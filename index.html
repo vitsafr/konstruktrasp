@@ -865,13 +865,37 @@ table.grid-teacher{table-layout:fixed}
   .panel-body{max-height:56vh}
 }
 @media (max-width:640px){
-  .topbar{flex-wrap:wrap; padding:10px 12px; gap:9px}
-  .title-input{order:3; flex:1 1 100%; font-size:14px}
-  .tools{flex:1 1 auto; justify-content:flex-end}
+  /* Две строки вместо трёх. Шапка липкая, поэтому каждый лишний ряд навсегда
+     отъедает высоту у самого расписания: было 150px из 760 на телефоне.
+     Сверху марка и второстепенные кнопки, снизу название и главная кнопка.
+     display:contents у .tools нужен, чтобы её дети раскладывались сеткой
+     шапки: иначе «Собрать расписание» не вынести на вторую строку. */
+  .topbar{
+    display:grid; align-items:center;
+    grid-template-columns:minmax(0,1fr) auto auto auto;
+    grid-template-areas:
+      "brand undo print file"
+      "title build build build";
+    gap:9px 8px; padding:10px 12px;
+  }
+  .brand{grid-area:brand; min-width:0; overflow:hidden}
+  .brand b{overflow:hidden; text-overflow:ellipsis}
+  .brand small{display:none}
+  .tools{display:contents}
+  .undo-pair{grid-area:undo}
+  #btnPrint{grid-area:print}
+  .menu-wrap{grid-area:file}
+  .title-input{grid-area:title; min-width:0; font-size:14px}
+  #btnBuild{grid-area:build}
   .btn span.lbl{display:none}
   .btn{padding:9px 11px}
   .btn-primary span.lbl{display:inline}
-  .brand small{display:none}
+  /* Педагога в строке нагрузки видно хуже всех: фамилия с инициалами длиннее
+     «каб. 12», а места им доставалось поровну. Базис обнуляем — при auto оба
+     поля упираются в собственную ширину input и делят нехватку пополам,
+     сколько им ни добавляй flex-grow. */
+  .plan-item .pi-bot .combo{flex-basis:0}
+  .plan-item .pi-bot .combo[data-kind="teachers"]{flex-grow:1.35}
   .grid-wrap{padding:10px}
   .cell{height:58px}
   .modal{padding:20px}
